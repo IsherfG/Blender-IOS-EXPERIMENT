@@ -17,6 +17,7 @@ set(LIB
   PRIVATE bf::intern::atomic
   PRIVATE bf::intern::guardedalloc
   PRIVATE bf::dependencies::optional::tbb
+  PUBLIC bf::dependencies::openimageio
   bf::dependencies::fmt
 )
 
@@ -65,24 +66,28 @@ set(BLENLIB_SRC
 )
 
 set(SRC
+  dna_parse.cc
   dna_utils.cc
   makesdna.cc
   ${BLENLIB_SRC}
   ${dna_header_include_file}
   ${dna_header_string_file}
+
+  dna_parse.h
+  dna_utils.h
 )
 
-if(NOT WITH_CROSSCOMPILED_TOOLS)
-  # BLI_mempool.cc needs these files for ThreadMutex when
-  # compiling in address sanitizer mode.
-  if(WITH_COMPILER_ASAN)
-    list(APPEND SRC
-    )
-  endif()
+# BLI_mempool.cc needs these files for ThreadMutex when
+# compiling in address sanitizer mode.
+if(WITH_COMPILER_ASAN)
+  list(APPEND SRC
+  )
+endif()
 
 # `SRC_DNA_INC` is defined in the parent directory.
 
-add_cc_flags_custom_test(makesdna)
+if(NOT TARGET makesdna)
+  add_c_and_cxx_flags_custom_test(makesdna)
 
   add_executable(makesdna ${SRC} ${SRC_DNA_INC})
   setup_platform_linker_flags(makesdna)

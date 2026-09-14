@@ -30,7 +30,7 @@ ccl_device void bsdf_ray_portal_setup(ccl_private ShaderData *sd,
     return;
   }
 
-  sd->closure_transparent_extinction = Spectrum(sd->closure_transparent_extinction) + weight;
+  sd->closure_transparent_extinction += weight;
 
   ccl_private RayPortalClosure *pc = (ccl_private RayPortalClosure *)closure_alloc(
       sd, sizeof(RayPortalClosure), CLOSURE_BSDF_RAY_PORTAL_ID, weight);
@@ -43,7 +43,7 @@ ccl_device void bsdf_ray_portal_setup(ccl_private ShaderData *sd,
     pc->sample_weight = sample_weight;
     pc->N = sd->N;
     pc->P = position;
-    pc->D = direction;
+    pc->D = safe_normalize(direction);
   }
 }
 

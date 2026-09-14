@@ -81,7 +81,7 @@ struct NavigateWidgetGroup {
     struct {
       char is_persp;
       bool is_camera;
-      char viewlock;
+      eRegionView3D_ViewLock viewlock;
       char cameralock;
     } rv3d;
   } state;
@@ -182,23 +182,8 @@ static void WIDGETGROUP_navigate_setup(const bContext *C, wmGizmoGroup *gzgroup)
       gz->color_hi[3] = 0.5f;
     }
     else {
-      uchar icon_color[3];
-      ui::theme::get_color_3ubv(TH_TEXT, icon_color);
-      int color_tint, color_tint_hi;
-      if (icon_color[0] > 128) {
-        color_tint = -40;
-        color_tint_hi = 60;
-        gz->color[3] = 0.5f;
-        gz->color_hi[3] = 0.5f;
-      }
-      else {
-        color_tint = 60;
-        color_tint_hi = 60;
-        gz->color[3] = 0.5f;
-        gz->color_hi[3] = 0.75f;
-      }
-      ui::theme::get_color_shade_3fv(TH_HEADER, color_tint, gz->color);
-      ui::theme::get_color_shade_3fv(TH_HEADER, color_tint_hi, gz->color_hi);
+      gz->color[3] = 0.0f;
+      gz->color_hi[3] = 0.0f;
     }
 
     /* may be overwritten later */
@@ -210,10 +195,6 @@ static void WIDGETGROUP_navigate_setup(const bContext *C, wmGizmoGroup *gzgroup)
           gz->ptr, "draw_options", ED_GIZMO_BUTTON_SHOW_OUTLINE | ED_GIZMO_BUTTON_SHOW_BACKDROP);
     }
 
-    /*
-     IOS_FIXME: This sometimes returns NULL on iOS, stepping into the function in the debugger
-     fixes it. Possible race condition somewhere?
-     */
     wmOperatorType *ot = WM_operatortype_find(info->opname, true);
 #ifndef WITH_PYTHON
     if (ot != nullptr)
@@ -418,6 +399,7 @@ void VIEW3D_GGT_navigate(wmGizmoGroupType *gzgt)
   gzgt->poll = WIDGETGROUP_navigate_poll;
   gzgt->setup = WIDGETGROUP_navigate_setup;
   gzgt->draw_prepare = WIDGETGROUP_navigate_draw_prepare;
+  gzgt->draw_background = ED_gizmo_button2d_group_background;
 }
 
 /** \} */

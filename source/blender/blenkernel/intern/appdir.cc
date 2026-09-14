@@ -164,28 +164,11 @@ const char *BKE_appdir_folder_root()
 
 const char *BKE_appdir_folder_default_or_root()
 {
-#ifdef WITH_APPLE_CROSSPLATFORM
-  const std::optional<std::string> def_path = BKE_appdir_resource_path_id_with_version(
-      BLENDER_RESOURCE_PATH_LOCAL, true, BLENDER_VERSION);
-  if (def_path.has_value()) {
-    return def_path->c_str();
-  }
-#endif
-
   const char *path = BKE_appdir_folder_default();
   if (path == nullptr) {
     path = BKE_appdir_folder_root();
   }
   return path;
-}
-
-const char *BKE_appdir_folder_home()
-{
-#ifdef WITH_APPLE_CROSSPLATFORM
-  return BKE_appdir_folder_default_or_root();
-#else
-  return BLI_dir_home();
-#endif
 }
 
 bool BKE_appdir_folder_documents(char *dir)
@@ -204,7 +187,7 @@ bool BKE_appdir_folder_documents(char *dir)
 
   /* Ghost couldn't give us a documents path, let's try if we can find it ourselves. */
 
-  const char *home_path = BKE_appdir_folder_home();
+  const char *home_path = BLI_dir_home();
   if (!home_path || !BLI_is_dir(home_path)) {
     return false;
   }
@@ -220,18 +203,17 @@ bool BKE_appdir_folder_documents(char *dir)
   return true;
 }
 
-bool BKE_appdir_folder_caches(char *path, const size_t path_maxncpy)
+void BKE_appdir_folder_caches(char *path, const size_t path_maxncpy)
 {
   path[0] = '\0';
 
   const GHOST_ISystemPaths *ghost_system_paths = GHOST_ISystemPaths::get();
   std::optional<std::string> caches_root_path = ghost_system_paths->getUserSpecialDir(
       GHOST_kUserSpecialDirCaches);
-  if (!caches_root_path || !BLI_is_dir(caches_root_path->c_str())) {
-    caches_root_path = BKE_tempdir_base();
-  }
-  if (!caches_root_path || !BLI_is_dir(caches_root_path->c_str())) {
-    return false;
+  if (!caches_root_path || caches_root_path->empty()) [[unlikely]] {
+    const char *tempdir = BKE_tempdir_session();
+    BLI_path_join(path, path_maxncpy, tempdir, ".cache", SEP_STR);
+    return;
   }
 
 #ifdef WIN32
@@ -247,8 +229,6 @@ bool BKE_appdir_folder_caches(char *path, const size_t path_maxncpy)
 #else /* __linux__ */
   BLI_path_join(path, path_maxncpy, caches_root_path->c_str(), "blender", SEP_STR);
 #endif
-
-  return true;
 }
 
 bool BKE_appdir_font_folder_default(char *dir, size_t dir_maxncpy)
@@ -262,7 +242,7 @@ bool BKE_appdir_font_folder_default(char *dir, size_t dir_maxncpy)
     BLI_strncpy_wchar_as_utf8(test_dir, wpath, sizeof(test_dir));
   }
 #elif defined(__APPLE__)
-  if (const char *home_dir = BKE_appdir_folder_home()) {
+  if (const char *home_dir = BLI_dir_home()) {
     BLI_path_join(test_dir, sizeof(test_dir), home_dir, "Library/Fonts");
   }
 #else
@@ -286,10 +266,10 @@ bool BKE_appdir_font_folder_default(char *dir, size_t dir_maxncpy)
  * Concatenates paths into \a targetpath,
  * returning true if result points to a directory.
  *
+ * \param check_is_dir: When false, return true even if the path doesn't exist.
  * \param path_base: Path base, never nullptr.
  * \param folder_name: First sub-directory (optional).
  * \param subfolder_name: Second sub-directory (optional).
- * \param check_is_dir: When false, return true even if the path doesn't exist.
  *
  * \note The names for optional paths only follow other usage in this file,
  * the names don't matter for this function.
@@ -409,11 +389,12 @@ static bool get_path_local_ex(char *targetpath,
    * we must move the blender_version dir with contents to Resources.
    * Add 4 + 9 for the temporary `/../` path & `Resources`. */
   char osx_resourses[FILE_MAX + 4 + 9];
-#  if WITH_APPLE_CROSSPLATFORM
-  /* Ipad resources not in resources folder. */
-  BLI_path_join(osx_resourses, sizeof(osx_resourses), g_app.program_dirname, "Assets");
+#  ifdef BLENDER_PLATFORM_RESOURCE_DIR
+  BLI_path_join(osx_resourses,
+                sizeof(osx_resourses),
+                g_app.program_dirname,
+                BLENDER_PLATFORM_RESOURCE_DIR);
 #  else
-  /* Ipad resources not in resources folder. */
   BLI_path_join(osx_resourses, sizeof(osx_resourses), g_app.program_dirname, "..", "Resources");
 #  endif
   /* Remove the '/../' added above. */
@@ -630,6 +611,42 @@ static bool get_path_system(char *targetpath,
       targetpath, targetpath_maxncpy, folder_name, subfolder_name, version, check_is_dir);
 }
 
+/**
+ * Returns the path of a folder for architecture-dependent libraries, mirroring
+ * #get_path_system_ex under the install lib tree (FHS). See #GHOST_ISystemPaths::getSystemLibsDir;
+ * returns false on platforms that bundle libraries beside the executable.
+ */
+static bool get_path_system_libs_ex(char *targetpath,
+                                    size_t targetpath_maxncpy,
+                                    const char *folder_name,
+                                    const char *subfolder_name,
+                                    const int version,
+                                    const bool check_is_dir)
+{
+  char system_path[FILE_MAX] = "";
+
+  const GHOST_ISystemPaths *ghost_system_paths = GHOST_ISystemPaths::get();
+  const char *system_base_path = ghost_system_paths->getSystemLibsDir(
+      version, blender_version_decimal(version));
+  if (system_base_path) {
+    STRNCPY(system_path, system_base_path);
+  }
+
+  if (!system_path[0]) {
+    return false;
+  }
+
+  CLOG_DEBUG(&LOG,
+             "Get path system libs: '%s', folder='%s', subfolder='%s'",
+             system_path,
+             STR_OR_FALLBACK(folder_name),
+             STR_OR_FALLBACK(subfolder_name));
+
+  /* Try `$LIBDIR/folder_name/subfolder_name`, `subfolder_name` may be nullptr. */
+  return test_path(
+      targetpath, targetpath_maxncpy, check_is_dir, system_path, folder_name, subfolder_name);
+}
+
 /** \} */
 
 /* -------------------------------------------------------------------- */
@@ -706,11 +723,6 @@ bool BKE_appdir_folder_id_ex(const int folder_id,
       if (get_path_local(path, path_maxncpy, "scripts", subfolder)) {
         break;
       }
-#ifdef WITH_APPLE_CROSSPLATFORM
-      if (get_path_user(path, path_maxncpy, "scripts", subfolder)) {
-        break;
-      }
-#endif
       return false;
 
     case BLENDER_USER_EXTENSIONS:
@@ -744,11 +756,6 @@ bool BKE_appdir_folder_id_ex(const int folder_id,
       if (get_path_local(path, path_maxncpy, "python", subfolder)) {
         break;
       }
-#ifdef WITH_APPLE_CROSSPLATFORM
-      if (get_path_user(path, path_maxncpy, "python", subfolder)) {
-        break;
-      }
-#endif
       return false;
 
     default:
@@ -860,6 +867,9 @@ std::optional<std::string> BKE_appdir_resource_path_id_with_version(const int fo
     case BLENDER_RESOURCE_PATH_SYSTEM:
       ok = get_path_system_ex(path, sizeof(path), nullptr, nullptr, version, check_is_dir);
       break;
+    case BLENDER_RESOURCE_PATH_SYSTEM_LIBS:
+      ok = get_path_system_libs_ex(path, sizeof(path), nullptr, nullptr, version, check_is_dir);
+      break;
     default:
       path[0] = '\0'; /* in case check_is_dir is false */
       ok = false;
@@ -897,7 +907,7 @@ std::optional<std::string> BKE_appdir_resource_path_id(const int folder_id,
  *
  * \param program_filepath: The full path and full name of the executable
  * (must be #FILE_MAX minimum)
- * \param name: The name of the executable (usually `argv[0]`) to be checked
+ * \param program_name: The name of the executable (usually `argv[0]`) to be checked
  */
 static void where_am_i(char *program_filepath,
                        const size_t program_filepath_maxncpy,
@@ -1157,7 +1167,7 @@ bool BKE_appdir_app_template_has_userpref(const char *app_template)
 
 void BKE_appdir_app_templates(ListBaseT<LinkData> *templates)
 {
-  BLI_listbase_clear(templates);
+  templates->clear_no_delete();
 
   const Vector<std::string> directories = appdir_app_template_directories();
 

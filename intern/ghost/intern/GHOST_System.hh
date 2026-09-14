@@ -192,6 +192,14 @@ class GHOST_System : public GHOST_ISystem {
   void setWindowCSD_Layout(const GHOST_CSD_Layout &csd_layout);
   const GHOST_CSD_Layout &getWindowCSD_Layout() const override;
 
+  /***************************************************************************************
+   * Window Icon Generator.
+   ***************************************************************************************/
+
+  /** \copydoc #GHOST_ISystem::setIconGenerator */
+  void setIconGenerator(const GHOST_IconGenerator *icon_generator) override;
+  const GHOST_IconGenerator *icon_generator_ = nullptr;
+
   /** \copydoc #GHOST_ISystem::showMessageBox */
   GHOST_TSuccess showMessageBox(const char * /*title*/,
                                 const char * /*message*/,
@@ -214,11 +222,6 @@ class GHOST_System : public GHOST_ISystem {
    * \param event: The event to push on the stack.
    */
   GHOST_TSuccess pushEvent(std::unique_ptr<const GHOST_IEvent> event);
-
-  GHOST_TSuccess pushEvent(const GHOST_IEvent *event)
-  {
-    return pushEvent(std::unique_ptr<const GHOST_IEvent>(event));
-  }
 
   /**
    * \return The timer manager.

@@ -2,21 +2,7 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-if(WITH_APPLE_CROSSPLATFORM)
-  # Disable OpenGL and TBB for IOS
-  set(SUBDIV_PLATFORM_FLAGS
-    -DNO_OPENGL=ON
-    -DNO_TBB=ON
-  )
-else()
-  set(SUBDIV_PLATFORM_FLAGS
-    -DNO_OPENGL=OFF
-    -DNO_TBB=OFF
-  )
-endif()
-
 set(OPENSUBDIV_EXTRA_ARGS
-${SUBDIV_PLATFORM_FLAGS}
   -DNO_LIB=OFF
   -DNO_EXAMPLES=ON
   -DNO_TUTORIALS=ON
@@ -24,9 +10,11 @@ ${SUBDIV_PLATFORM_FLAGS}
   -DNO_PTEX=ON
   -DNO_DOC=ON
   -DNO_OMP=ON
+  -DNO_TBB=OFF
   -DNO_CUDA=ON
   -DNO_OPENCL=ON
   -DNO_CLEW=ON
+  -DNO_OPENGL=OFF
   -DNO_METAL=OFF
   -DNO_DX=ON
   -DNO_TESTS=ON
@@ -46,7 +34,8 @@ ExternalProject_Add(external_opensubdiv
 
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${LIBDIR}/opensubdiv
-    -Wno-dev ${DEFAULT_CMAKE_FLAGS}
+    -Wno-dev
+    ${DEFAULT_CMAKE_FLAGS}
     ${OPENSUBDIV_EXTRA_ARGS}
 
   INSTALL_DIR ${LIBDIR}/opensubdiv
@@ -79,7 +68,6 @@ if(WIN32)
   endif()
 else()
   harvest(external_opensubdiv opensubdiv/include opensubdiv/include "*.h")
-  harvest(external_opensubdiv opensubdiv/lib opensubdiv/lib "*.a")
   harvest_rpath_lib(external_opensubdiv opensubdiv/lib opensubdiv/lib "*${SHAREDLIBEXT}*")
 endif()
 

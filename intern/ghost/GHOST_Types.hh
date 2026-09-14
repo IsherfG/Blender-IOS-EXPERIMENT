@@ -77,6 +77,28 @@ struct GHOST_CursorGenerator {
   GHOST_TUserDataPtr user_data;
 };
 
+class GHOST_IWindow;
+
+struct GHOST_IconGenerator {
+  /**
+   * Generate a top-level window icon.
+   *
+   * The callback writes RGBA pixels into a pre-allocated buffer.
+   * The color is "straight" (alpha is not pre-multiplied).
+   *
+   * \param icon_generator: Pass in to allow accessing the user_data argument.
+   * \param window: The window requesting an icon.
+   * \param pixels: Pre-allocated RGBA buffer (`icon_size * icon_size * 4` bytes).
+   * \param icon_size: The width and height of the square icon in pixels.
+   */
+  void (*generate_fn)(const struct GHOST_IconGenerator *icon_generator,
+                      GHOST_IWindow *window,
+                      uint8_t *pixels,
+                      int icon_size);
+  /** Implementation specific data. */
+  GHOST_TUserDataPtr user_data;
+};
+
 enum GHOST_GPUFlags {
   GHOST_gpuStereoVisual = (1 << 0),
   GHOST_gpuDebugContext = (1 << 1),
@@ -162,6 +184,8 @@ enum GHOST_TCapabilityFlag {
    * Otherwise client-side-decorations should be used, see: `WITH_GHOST_CSD`.
    */
   GHOST_kCapabilityWindowDecorationServerSide = (1 << 14),
+  /** Support for a platform-managed on-screen keyboard. */
+  GHOST_kCapabilityOnScreenKeyboard = (1 << 15),
 };
 
 /**
@@ -304,14 +328,9 @@ enum GHOST_TEventType {
    * \note #GHOST_GetEventData returns #GHOST_TEventTrackpadData.
    */
   GHOST_kEventTrackpad,
-  /**
-   * Touch event.
-   *
-   * \note #GHOST_GetEventData returns #GHOST_TEventTouchData.
-   */
-  GHOST_kEventTouch,
 
-  /** Multi touch event. */
+  /** Touch event carrying #GHOST_TEventTouchData. */
+  GHOST_kEventTouch,
   GHOST_kEventTwoFingerTap,
   GHOST_kEventThreeFingerTap,
   GHOST_kEventFourFingerTap,
@@ -572,9 +591,7 @@ enum GHOST_TKey {
   GHOST_kKeyF23,
   GHOST_kKeyF24,
 
-#if (WITH_APPLE_CROSSPLATFORM)
   GHOST_kKeyTextEdit,
-#endif
 
   /* Multimedia keypad buttons. */
   GHOST_kKeyMediaPlay,
@@ -664,8 +681,10 @@ struct GHOST_TEventTrackpadData {
   int32_t deltaY;
   /** The delta is inverted from the device due to system preferences. */
   char isDirectionInverted;
-  /** Number of fingers triggering trackpad or touch event. */
+  /** Number of fingers triggering the trackpad or touch event. */
   uint numFingers;
+  /** Optional event-local modifier, without changing persistent keyboard state. */
+  GHOST_TModifierKey modifierKey;
 };
 
 enum GHOST_TTouchEventSubTypes {
@@ -677,13 +696,9 @@ enum GHOST_TTouchEventSubTypes {
 };
 
 struct GHOST_TEventTouchData {
-  /** The event subtype */
   GHOST_TTouchEventSubTypes subtype;
-  /** The x-location of the touch event */
   int32_t x;
-  /** The y-location of the touch event */
   int32_t y;
-  /** Number of fingers triggering touch or touch event. */
   uint numFingers;
 };
 
@@ -798,12 +813,27 @@ enum GHOST_TWindowDecorationStyleFlags {
 };
 
 struct GHOST_GPUDevice {
+  /**
+   * When true: use the specified GPU.
+   * When false: fallback to saved GPU.
+   */
+  bool is_override;
+  /**
+   * When true, a missing override device causes context creation to fail instead of falling back.
+   */
+  bool fail_on_invalid_override;
   /** Index of the GPU device in the list provided by the platform. */
   int index;
   /** (PCI) Vendor ID of the GPU. */
   uint vendor_id;
   /** Device ID of the GPU provided by the vendor. */
   uint device_id;
+  /** Saved preference to fall back to when the override device is unavailable. */
+  int fallback_index;
+  /** Saved preference fallback (PCI) Vendor ID. */
+  uint fallback_vendor_id;
+  /** Saved preference fallback Device ID. */
+  uint fallback_device_id;
 };
 
 /**
@@ -1401,44 +1431,27 @@ enum GHOST_NDOF_ButtonT {
   GHOST_NDOF_BUTTON_USER = 0x10000
 };
 
-#if (WITH_APPLE_CROSSPLATFORM)
-
-/** How to setup an onscreen keyboard */
 struct GHOST_KeyboardProperties {
-
-  /* Initial starting state of text box. */
   enum text_field_state {
     move_cursor_to_start,
     move_cursor_to_end,
     select_all_text,
-    select_text_range
+    select_text_range,
   };
   text_field_state inital_text_state;
   int text_select_range[2];
 
-  /* Type of keyboard to display. */
   enum keyboard_type_desc {
     ascii_keyboard_type,
     decimal_numpad_keyboard_type,
-    numpad_keyboard_type
+    numpad_keyboard_type,
   };
   keyboard_type_desc keyboard_type;
 
-  /* Size is in points. */
   float font_size;
-  /* Format is RGBA. */
   float font_color[4];
-
-  /* On-screen location of text box. */
   float text_box_origin[2];
   float text_box_size[2];
-
-  /* Any tips to display next to keyboard input. */
   const char *tip_text;
-
-  /* Initial string. */
   const char *text_string;
-
 };
-
-#endif

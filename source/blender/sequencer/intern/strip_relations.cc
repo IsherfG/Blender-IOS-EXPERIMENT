@@ -14,9 +14,12 @@
 #include "BLI_listbase.h"
 #include "BLI_math_base.h"
 #include "BLI_session_uid.h"
+#include "BLI_string.h"
 
+#include "BKE_layer.hh"
 #include "BKE_main.hh"
 #include "BKE_report.hh"
+#include "BKE_scene.hh"
 
 #include "DEG_depsgraph.hh"
 
@@ -166,6 +169,11 @@ void relations_invalidate_cache(Scene *scene, Strip *strip)
     strip_effect_speed_rebuild_map(scene, strip);
   }
 
+  /* Zero-input compositor effect source caches also need to be invalidated. */
+  if (strip->type == STRIP_TYPE_COMPOSITOR && !strip->is_effect_with_inputs()) {
+    source_image_cache_invalidate_strip(scene, strip);
+  }
+
   invalidate_final_cache_strip_range(scene, strip);
   intra_frame_cache_invalidate(scene, strip);
   preview_cache_invalidate(scene);
@@ -174,6 +182,28 @@ void relations_invalidate_cache(Scene *scene, Strip *strip)
   /* Needed to update VSE sound. */
   DEG_id_tag_update(&scene->id, ID_RECALC_SEQUENCER_STRIPS);
   prefetch_stop(scene);
+}
+
+void relations_tag_temporary_animation_frame(Scene *scene)
+{
+  Editing *ed = editing_get(scene);
+  if (ed != nullptr) {
+    ed->runtime->temporary_animation_frame = BKE_scene_frame_get(scene);
+  }
+}
+
+void relations_invalidate_temporary_animation_frame(Scene *scene)
+{
+  Editing *ed = editing_get(scene);
+  if (ed == nullptr || !ed->runtime->temporary_animation_frame.has_value()) {
+    return;
+  }
+
+  const float temp_frame = ed->runtime->temporary_animation_frame.value();
+  if (temp_frame != BKE_scene_frame_get(scene)) {
+    final_image_cache_invalidate_frame_range(scene, temp_frame, temp_frame);
+    ed->runtime->temporary_animation_frame.reset();
+  }
 }
 
 void relations_invalidate_scene_strips(const Main *bmain, const Scene *scene_target)
@@ -187,7 +217,36 @@ void relations_invalidate_scene_strips(const Main *bmain, const Scene *scene_tar
   }
 }
 
-void relations_invalidate_compositor_modifiers(const Main *bmain, const bNodeTree *node_tree)
+void relations_update_view_layer_scene_strips(Main *bmain,
+                                              Scene *scene,
+                                              const char *old_name,
+                                              const char *new_name)
+{
+  for (Scene &scene_iter : bmain->scenes) {
+    Editing *ed = seq::editing_get(&scene_iter);
+    if (ed == nullptr) {
+      continue;
+    }
+    for (Strip *strip : seq::lookup_strips_by_scene(ed, scene)) {
+      BLI_assert(strip->scene_view_layer_name != nullptr);
+      if (!STREQ(strip->scene_view_layer_name, old_name)) {
+        continue;
+      }
+
+      MEM_delete(strip->scene_view_layer_name);
+      strip->scene_view_layer_name = new_name ?
+                                         BLI_strdup(new_name) :
+                                         BLI_strdup(
+                                             BKE_view_layer_default_render(strip->scene)->name);
+      if (new_name == nullptr) {
+        /* View layer was deleted. */
+        seq::relations_invalidate_cache_raw(&scene_iter, strip);
+      }
+    }
+  }
+}
+
+void relations_invalidate_compositor_users(const Main *bmain, const bNodeTree *node_tree)
 {
   for (Scene &scene : bmain->scenes) {
     if (scene.ed != nullptr) {

@@ -2,6 +2,12 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
+if(WIN32)
+  set(FREETYPE_LIB_PREFIX "")
+else()
+  set(FREETYPE_LIB_PREFIX "lib")
+endif()
+
 set(FREETYPE_EXTRA_ARGS
   -DCMAKE_RELEASE_POSTFIX:STRING=2ST
   -DCMAKE_DEBUG_POSTFIX:STRING=2ST_d
@@ -10,19 +16,11 @@ set(FREETYPE_EXTRA_ARGS
   -DFT_DISABLE_PNG=ON
   -DFT_REQUIRE_BROTLI=ON
   -DFT_REQUIRE_ZLIB=ON
-  -DPC_BROTLIDEC_INCLUDEDIR=${LIBDIR}/brotli/include
-  -DPC_BROTLIDEC_LIBDIR=${LIBDIR}/brotli/lib
+  -DBROTLIDEC_INCLUDE_DIRS=${LIBDIR}/brotli/include
+  -DBROTLIDEC_LIBRARIES=${LIBDIR}/brotli/lib/${FREETYPE_LIB_PREFIX}brotlicommon-static${LIBEXT}
   -DZLIB_LIBRARY=${LIBDIR}/zlib/lib/${ZLIB_LIBRARY}
   -DZLIB_INCLUDE_DIR=${LIBDIR}/zlib/include
 )
-
-if(WITH_APPLE_CROSSPLATFORM)
-  set(FREETYPE_EXTRA_ARGS
-    ${FREETYPE_EXTRA_ARGS}
-    -DBROTLIDEC_INCLUDE_DIRS=${LIBDIR}/brotli/include
-    -DBROTLIDEC_LIBRARIES=${LIBDIR}/brotli/lib
-  )
-endif()
 
 ExternalProject_Add(external_freetype
   URL file://${PACKAGE_DIR}/${FREETYPE_FILE}
@@ -38,15 +36,6 @@ ExternalProject_Add(external_freetype
 
   INSTALL_DIR ${LIBDIR}/freetype
 )
-
-if(WITH_APPLE_CROSSPLATFORM)
-  # Library name alias. 
-  ExternalProject_Add_Step(external_freetype after_install
-    COMMAND ${CMAKE_COMMAND} -E copy ${LIBDIR}/freetype/lib/libfreetype2st.a ${LIBDIR}/freetype/lib/libfreetype.a
-
-    DEPENDEES install
-  )
-endif()
 
 add_dependencies(
   external_freetype

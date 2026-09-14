@@ -155,6 +155,8 @@ Documentation Targets
      Set the environment variable BLENDER_DOC_SPHINX=0
      to only generate RST files (skip the sphinx HTML build).
 
+   * python_stubs:
+     Generate Python API stubs (.pyi) from RST documentation.
    * doc_doxy:
      Generate doxygen C/C++ docs.
    * doc_dna:
@@ -179,20 +181,6 @@ endif
 # System Vars
 OS:=$(shell uname -s)
 OS_NCASE:=$(shell uname -s | tr '[A-Z]' '[a-z]')
-# Path to host machine build folder. Cross compiled builds will require native host tools during build process.
-OS_NCASE_CROSSCOMPILE:=$(OS_NCASE)
-# Apple: ios and ios-simulator
-# iOS and iOS-Simulator libs will build to /ios{_simulator}_arm64 instead of /darwin_arm64.
-ifneq "$(findstring ios-simulator, $(MAKECMDGOALS))" ""
-	OS_NCASE:=ios-simulator
-	DEPS_ARGS:=-DAPPLE_TARGET_DEVICE=ios-simulator
-else ifneq "$(findstring ios, $(MAKECMDGOALS))" ""
-	OS_NCASE:=ios
-	DEPS_ARGS:=-DAPPLE_TARGET_DEVICE=ios
-else
-	DEPS_ARGS:=-DAPPLE_TARGET_DEVICE=macos
-endif
-
 CPU:=$(shell uname -m)
 
 # Use our OS and CPU architecture naming conventions.
@@ -221,10 +209,6 @@ ifndef BUILD_DIR
 	BUILD_DIR:=$(shell dirname "$(BLENDER_DIR)")/build_$(OS_NCASE)
 endif
 
-ifndef CROSSCOMPILE_BUILD_DIR
-	CROSSCOMPILE_BUILD_DIR:=$(shell dirname "$(BLENDER_DIR)")/build_$(OS_NCASE_CROSSCOMPILE)
-endif
-
 # Dependencies DIR's
 DEPS_SOURCE_DIR:=$(BLENDER_DIR)/build_files/build_environment
 
@@ -236,26 +220,6 @@ ifndef DEPS_INSTALL_DIR
 	DEPS_INSTALL_DIR:=$(BLENDER_DIR)/lib/$(OS_LIBDIR)_$(CPU)
 endif
 
-ifndef CROSSCOMPILE_DEPS_INSTALL_DIR
-	#CROSSCOMPILE_DEPS_INSTALL_DIR:=$(shell dirname "$(BLENDER_DIR)")/lib/$(OS_NCASE_CROSSCOMPILE)
-	#CROSSCOMPILE_DEPS_INSTALL_DIR:=$(BLENDER_DIR)/lib/$(OS_NCASE_CROSSCOMPILE)
-	# IOS_FIXME: "macos" should probably not be hardcoded?
-	CROSSCOMPILE_DEPS_INSTALL_DIR:=$(BLENDER_DIR)/lib/macos
-
-	# Add processor type to directory name, except for darwin x86_64
-	# which by convention does not have it.
-	ifeq ($(OS_NCASE_CROSSCOMPILE),darwin)
-		ifneq ($(CPU),x86_64)
-			CROSSCOMPILE_DEPS_INSTALL_DIR:=$(CROSSCOMPILE_DEPS_INSTALL_DIR)_$(CPU)
-		endif
-	else
-		CROSSCOMPILE_DEPS_INSTALL_DIR:=$(CROSSCOMPILE_DEPS_INSTALL_DIR)_$(CPU)
-	endif
-endif
-
-# For Cross-compiled builds, we pass in host dependencies path via crosscompile directory
-DEPS_CROSSCOMPILE_ARGS:=-DCMAKE_DEPS_CROSSCOMPILE_BUILDDIR=$(CROSSCOMPILE_BUILD_DIR) \
-					    -DCMAKE_DEPS_CROSSCOMPILE_INSTALLDIR=$(CROSSCOMPILE_DEPS_INSTALL_DIR)
 # Set the LIBDIR, an empty string when not found.
 LIBDIR:=$(wildcard $(BLENDER_DIR)/lib/${OS_LIBDIR}_${CPU})
 ifeq (, $(LIBDIR))
@@ -372,11 +336,7 @@ else
 	ifneq ("$(wildcard $(DEPS_BUILD_DIR)/build.ninja)","")
 		DEPS_BUILD_COMMAND:=ninja
 	else
-		ifeq ($(OS), Darwin)
-			DEPS_BUILD_COMMAND:=make -s
-		else
-			DEPS_BUILD_COMMAND:="$(BLENDER_DIR)/build_files/build_environment/linux/make_deps_wrapper.sh" -s
-		endif
+		DEPS_BUILD_COMMAND:="$(BLENDER_DIR)/build_files/build_environment/linux/make_deps_wrapper.sh" -s
 	endif
 endif
 
@@ -465,19 +425,7 @@ bpy: all
 developer: all
 ninja: all
 ccache: all
-tools: .FORCE
-	@echo
-	@echo Configuring Blender Host Tools in \"$(BUILD_DIR)\" ...
-	@$(CMAKE_CONFIG)
 
-	@echo
-	@echo Building Blender ...
-	$(BUILD_COMMAND) -C "$(BUILD_DIR)" -j $(NPROCS) shader_tool
-	$(BUILD_COMMAND) -C "$(BUILD_DIR)" -j $(NPROCS) datatoc
-	$(BUILD_COMMAND) -C "$(BUILD_DIR)" -j $(NPROCS) makesrna
-	$(BUILD_COMMAND) -C "$(BUILD_DIR)" -j $(NPROCS) makesdna
-	$(BUILD_COMMAND) -C "$(BUILD_DIR)" -j $(NPROCS) msgfmt
-   	
 # -----------------------------------------------------------------------------
 # Build dependencies
 DEPS_TARGET = install
@@ -490,12 +438,10 @@ deps: export SOURCE_DATE_EPOCH = 1745584760
 deps: .FORCE
 	@echo
 	@echo Configuring dependencies in \"$(DEPS_BUILD_DIR)\", install to \"$(DEPS_INSTALL_DIR)\"
-	
+
 	@cmake -H"$(DEPS_SOURCE_DIR)" \
 	       -B"$(DEPS_BUILD_DIR)" \
-	       -DHARVEST_TARGET=$(DEPS_INSTALL_DIR) \
-	       ${DEPS_ARGS} \
-	       ${DEPS_CROSSCOMPILE_ARGS}
+	       -DHARVEST_TARGET=$(DEPS_INSTALL_DIR)
 
 	@echo
 	@echo Building dependencies ...
@@ -530,6 +476,9 @@ package_archive: .FORCE
 #
 test: .FORCE
 	@$(PYTHON) ./build_files/utils/make_test.py "$(BUILD_DIR)"
+
+benchmark: .FORCE
+	@$(PYTHON) ./build_files/utils/make_benchmark.py "$(BUILD_DIR)"
 
 
 # -----------------------------------------------------------------------------
@@ -693,6 +642,15 @@ ifneq ($(BLENDER_DOC_SPHINX), 0)
 	@echo "docs written into: '$(BLENDER_DIR)/doc/python_api/sphinx-out/index.html'"
 endif
 
+python_stubs: .FORCE
+	@rm -rf "$(BLENDER_DIR)/doc/python_api/stubs"
+	@ASAN_OPTIONS=halt_on_error=0:${ASAN_OPTIONS} \
+	$(BLENDER_BIN) \
+	    --background --factory-startup --quiet \
+	    --python-exit-code 1 \
+	    --python doc/python_api/sphinx_doc_gen.py
+	@$(PYTHON) doc/python_api/sphinx_stub_gen.py
+
 doc_doxy: .FORCE
 	@cd doc/doxygen; doxygen Doxyfile
 	@echo "docs written into: '$(BLENDER_DIR)/doc/doxygen/html/index.html'"
@@ -713,12 +671,6 @@ clean: .FORCE
 	@if [ -d "$(BUILD_DIR)" ] ; then \
 		$(BUILD_COMMAND) -C "$(BUILD_DIR)" clean ; \
 	fi
-
-# Do-nothing target so Make doesn't raise warning when we specify 'ios-{simulator}' in 'make deps ios{-simluator}'
-ios: .FORCE
-	@echo "iOS target detected"
-ios-simulator: .FORCE
-	@echo "iOS-simulator target detected"
 
 .PHONY: all
 

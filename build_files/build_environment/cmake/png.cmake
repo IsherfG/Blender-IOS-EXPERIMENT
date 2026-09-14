@@ -9,22 +9,12 @@ set(PNG_EXTRA_ARGS
 )
 
 if(BLENDER_PLATFORM_ARM)
-  if(WITH_APPLE_CROSSPLATFORM)
-    set(PNG_EXTRA_ARGS 
-      ${PNG_EXTRA_ARGS} 
-      -DPNG_HARDWARE_OPTIMIZATIONS=ON 
-      -DPNG_ARM_NEON=on 
-      -DCMAKE_SYSTEM_PROCESSOR=arm64 
-      -DPNG_SHARED=off
-    )
-  else()
-    set(PNG_EXTRA_ARGS 
-      ${PNG_EXTRA_ARGS} 
-      -DPNG_HARDWARE_OPTIMIZATIONS=ON 
-      -DPNG_ARM_NEON=on 
-      -DCMAKE_SYSTEM_PROCESSOR="aarch64"
-    )
-  endif()
+  set(PNG_EXTRA_ARGS
+    ${PNG_EXTRA_ARGS}
+    -DPNG_HARDWARE_OPTIMIZATIONS=ON
+    -DPNG_ARM_NEON=on
+    -DCMAKE_SYSTEM_PROCESSOR="aarch64"
+  )
 endif()
 
 ExternalProject_Add(external_png

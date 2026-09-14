@@ -51,7 +51,7 @@ void device_metal_info(vector<DeviceInfo> &devices)
     string id = string("METAL_") + device_name;
 
     /* Hardware ID might not be unique, add device number in that case. */
-    if (unique_ids.find(id) != unique_ids.end()) {
+    if (unique_ids.contains(id)) {
       id += string_printf("_ID_%d", device_index);
     }
     unique_ids.insert(id);
@@ -80,9 +80,9 @@ void device_metal_info(vector<DeviceInfo> &devices)
 
     /* MNEE caused "Compute function exceeds available temporary registers" in macOS < 13 due to a
      * bug in spill buffer allocation sizing. */
-    info.has_mnee = false;
+    info.has_mnee_ = false;
     if (@available(macos 13.0, *)) {
-      info.has_mnee = true;
+      info.has_mnee_ = true;
     }
 
     info.use_hardware_raytracing = false;
@@ -113,11 +113,9 @@ void device_metal_info(vector<DeviceInfo> &devices)
 
 string device_metal_capabilities()
 {
-  string result = "";
-#  ifndef WITH_APPLE_CROSSPLATFORM
+  string result;
   auto allDevices = MTLCopyAllDevices();
   uint32_t num_devices = (uint32_t)allDevices.count;
-
   if (num_devices == 0) {
     return "No Metal devices found\n";
   }
@@ -127,12 +125,6 @@ string device_metal_capabilities()
     string device_name = MetalInfo::get_device_name(device);
     result += string_printf("\t\tDevice: %s\n", device_name.c_str());
   }
-#  else
-  /* Single device on iOS. */
-  id<MTLDevice> default_mtl_device = MTLCreateSystemDefaultDevice();
-  string device_name = MetalInfo::get_device_name(default_mtl_device);
-  result += string_printf("\t\tDevice: %s\n", device_name.c_str());
-#  endif
 
   return result;
 }

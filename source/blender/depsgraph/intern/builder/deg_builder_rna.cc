@@ -283,7 +283,9 @@ RNANodeIdentifier RNANodeQuery::construct_node_identifier(const PointerRNA *ptr,
            RNA_struct_is_a(ptr->type, RNA_MeshUVLoop) ||
            RNA_struct_is_a(ptr->type, RNA_MeshLoopColor) ||
            RNA_struct_is_a(ptr->type, RNA_VertexGroupElement) ||
-           RNA_struct_is_a(ptr->type, RNA_ShaderFx))
+           RNA_struct_is_a(ptr->type, RNA_ShaderFx) ||
+           (prop &&
+            RNA_property_flag(const_cast<PropertyRNA *>(prop)) & PROP_FORCE_GEOMETRY_EVAL) != 0)
   {
     /* When modifier is used as FROM operation this is likely referencing to
      * the property (for example, modifier's influence).
@@ -351,8 +353,11 @@ RNANodeIdentifier RNANodeQuery::construct_node_identifier(const PointerRNA *ptr,
     node_identifier.type = NodeType::GEOMETRY;
     return node_identifier;
   }
-  else if (RNA_struct_is_a(ptr->type, RNA_Strip)) {
-    /* Sequencer strip */
+  else if (RNA_struct_is_a(ptr->type, RNA_Strip) ||
+           RNA_struct_is_a(ptr->type, RNA_StripModifier) ||
+           ELEM(ptr->type, RNA_StripTransform, RNA_StripCrop, RNA_StripColorBalanceData))
+  {
+    /* Sequencer strip or related nested data. */
     node_identifier.type = NodeType::SEQUENCER;
     return node_identifier;
   }

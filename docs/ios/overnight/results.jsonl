@@ -1,0 +1,13 @@
+{"packet":"N040","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/20260811T044431Z-8f74cae544cd-signing-probe/signing-report.json"}
+{"packet":"N100","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/20260811T051226Z-c141dbd31097-deps-configure/result.json"}
+{"packet":"N110","status":"GREEN","artifact":"docs/ios/DEPENDENCY_DAG.json"}
+{"packet":"N111","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n111-1ae9-bootstrap-summary.json","cache_key":"1ae9905260312a93e8e7174f3abcf94a6b4cc6b380ecc8f9cf329e0989853788"}
+{"packet":"N112","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n112-0edd-font-bootstrap-summary.json","cache_key":"0edd9316d7de66d11228410643ad30e3bc52970f61a5b0394c010600f227603e"}
+{"packet":"N113","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n113-b034-text-stack-summary.json","cache_key":"b0340de3aebc1a84777d6b423050aa638e7d9b428282f844f1b7e95e5ca60591"}
+{"packet":"N114","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n114-ec24-image-codecs-summary.json","cache_key":"ec24602d8e68ccfaae25ad54e8130ee036d50ea0169fcf7ad71b43b9a45bafcb"}
+{"packet":"N115","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n115-9e31-geometry-summary.json","cache_key":"9e317f684ffac13636fc5d91f0720b2a33a38569e7895f3c3bfffdb08dd10f9e"}
+{"packet":"N116","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n116-e4b7-first-pixel-closure-manifest.json","cache_key":"e4b775f99fd0d6b27a0ec7bc6425dd9923357c59b1020567af077ec135b09957"}
+{"packet":"N150","status":"YELLOW","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n150-e4b7-blender-build.log","boundary":"Cocoa GHOST selected for iOS"}
+{"packet":"P500","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/p500-first-pixel-result.json","source_sha":"36f78477019578c8d608229671bb43654caef31c"}
+{"packet":"N900","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/n900-doctor/env.json"}
+{"packet":"P530","status":"GREEN","artifact":"/Volumes/BlenderBuild/blender-ios/artifacts/p530-universal-simulator-result.json","source_sha":"0b53af1bf54b9f706449657d84ed70f9e071ab92"}

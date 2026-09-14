@@ -793,8 +793,7 @@ void gpu::MTLBuffer::flush_range(uint64_t offset, uint64_t length)
     [metal_buffer_ didModifyRange:NSMakeRange(offset, length)];
   }
 #else
-  UNUSED_VARS(offset);
-  UNUSED_VARS(length);
+  UNUSED_VARS(offset, length);
 #endif
 }
 
@@ -960,7 +959,6 @@ MTLCircularBuffer::MTLCircularBuffer(MTLContext &ctx, uint64_t initial_size, boo
     : own_context_(ctx)
 {
   BLI_assert(this);
-
   ssbo_source_ = new gpu::MTLStorageBuf(initial_size);
   cbuffer_ = ssbo_source_->metal_buffer_;
   current_offset_ = 0;

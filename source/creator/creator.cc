@@ -10,6 +10,9 @@
 #include <cstring>
 
 #ifdef WIN32
+#  ifdef WIN32_LEAN_AND_MEAN
+#    undef WIN32_LEAN_AND_MEAN
+#  endif
 #  include "utfconv.hh"
 #  include <windows.h>
 #  ifdef WITH_CPU_CHECK
@@ -76,6 +79,8 @@
 
 #include "RNA_define.hh"
 
+#include "FN_init.hh"
+
 #ifdef WITH_OPENGL_BACKEND
 #  include "GPU_compilation_subprocess.hh"
 #endif
@@ -115,10 +120,6 @@ char **environ = nullptr;
 #include "creator_intern.h" /* Own include. */
 
 BLI_STATIC_ASSERT(ENDIAN_ORDER == L_ENDIAN, "Blender only builds on little endian systems")
-
-void WM_main_entry(bContext *C);
-int GHOST_iosmain(int argc, const char **argv);
-void GHOST_iosfinalize(bContext *C);
 
 /* -------------------------------------------------------------------- */
 /** \name GMP Allocator Workaround
@@ -178,6 +179,7 @@ namespace blender {
 ApplicationState app_state = []() {
   ApplicationState app_state{};
   app_state.signal.use_crash_handler = true;
+  app_state.signal.use_console_crash_handler = false;
   app_state.signal.use_abort_handler = true;
   app_state.exit_code_on_error.python = 0;
   app_state.main_arg_deferred = nullptr;
@@ -320,6 +322,13 @@ void main_python_exit()
 extern "C" int GHOST_HACK_getFirstFile(char buf[]);
 #endif
 
+#ifdef BLENDER_PLATFORM_MAIN
+namespace blender {
+int BLENDER_PLATFORM_MAIN(int argc, const char **argv);
+void BLENDER_PLATFORM_FINALIZE(bContext *C);
+}  // namespace blender
+#endif
+
 /**
  * Blender's main function responsibilities are:
  * - setup subsystems.
@@ -327,21 +336,20 @@ extern "C" int GHOST_HACK_getFirstFile(char buf[]);
  * - run #WM_main() event loop,
  *   or exit immediately when running in background-mode.
  */
-
-#ifdef WITH_APPLE_CROSSPLATFORM
+#ifdef BLENDER_PLATFORM_MAIN
 int main(int argc, const char **argv)
 {
-  return GHOST_iosmain(argc, argv);
+  return blender::BLENDER_PLATFORM_MAIN(argc, argv);
 }
 
-int main_ios_callback(int argc, const char **argv)
+int BLENDER_PLATFORM_MAIN_CALLBACK(int argc, const char **argv)
 #else
 int main(int argc,
-#  ifdef USE_WIN32_UNICODE_ARGS
+#ifdef USE_WIN32_UNICODE_ARGS
          const char ** /*argv_c*/
-#  else
+#else
          const char **argv
-#  endif
+#endif
 )
 #endif
 {
@@ -399,7 +407,7 @@ int main(int argc,
 #endif
 
 #if defined(WITH_TBB_MALLOC) && defined(__linux__)
-  /* Enable huge pages for performance .*/
+  /* Enable huge pages for performance. */
   scalable_allocation_mode(TBBMALLOC_USE_HUGE_PAGES, 1);
 #endif
 
@@ -501,6 +509,7 @@ int main(int argc,
   BKE_blender_globals_init(); /* `blender.cc` */
 
   BKE_cpp_types_init();
+  fn::multi_function::register_common_functions();
   BKE_idtype_init();
   BKE_modifier_init();
   seq::modifiers_init();
@@ -557,7 +566,12 @@ int main(int argc,
 
 #ifdef WITH_CYCLES
   CCL_log_init();
+  CCL_implicit_sharing_init();
 #endif
+
+  /* Set max open files to better handle production files that may use many
+   * open geometry or texture cache file handles. After logging since it's used .*/
+  BLI_system_max_open_files_ensure();
 
   /* Must be initialized after #BKE_appdir_init to account for color-management paths. */
   IMB_init();
@@ -662,15 +676,14 @@ int main(int argc,
     /* Shows the splash as needed. */
     WM_init_splash_on_startup(C);
 
-#  ifdef WITH_APPLE_CROSSPLATFORM
-    /* iOS Main loop handled differently. */
+#  ifdef BLENDER_PLATFORM_MAIN
     WM_main_entry(C);
-    GHOST_iosfinalize(C);
+    BLENDER_PLATFORM_FINALIZE(C);
 #  else
     WM_main(C);
 #  endif
   }
-#  ifndef WITH_APPLE_CROSSPLATFORM
+#  ifndef BLENDER_PLATFORM_MAIN
   /* Neither #WM_exit, #WM_main return, this quiets CLANG's `unreachable-code-return` warning. */
   BLI_assert_unreachable();
 #  endif

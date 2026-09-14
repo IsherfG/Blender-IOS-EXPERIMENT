@@ -23,14 +23,14 @@ set(LIB
   PRIVATE bf::dependencies::zlib
   ${PLATFORM_LINKLIBS})
 
-add_cc_flags_custom_test(msgfmt)
+add_c_and_cxx_flags_custom_test(msgfmt)
 
 if(WIN32)
   string(APPEND CMAKE_EXE_LINKER_FLAGS_DEBUG " /nodefaultlib:MSVCRT.lib")
   list(APPEND LIB bf_intern_utfconv)
 endif()
 
-if(NOT WITH_CROSSCOMPILED_TOOLS)
+if(NOT TARGET msgfmt)
   add_executable(msgfmt ${SRC})
   setup_platform_linker_flags(msgfmt)
   blender_target_include_dirs(msgfmt ${INC})
@@ -39,7 +39,7 @@ if(NOT WITH_CROSSCOMPILED_TOOLS)
   # If using an external manifest, copy it to the output directory after building.
   if(WITH_WINDOWS_EXTERNAL_MANIFEST)
     add_custom_command(TARGET msgfmt POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/tests.exe.manifest  $<TARGET_FILE_DIR:msgfmt>/$<TARGET_FILE_NAME:msgfmt >.manifest
+      COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/tests.exe.manifest  $<TARGET_FILE_DIR:msgfmt>/$<TARGET_FILE_NAME:msgfmt>.manifest
     )
   endif()
 endif()

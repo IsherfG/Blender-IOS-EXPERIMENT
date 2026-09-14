@@ -138,6 +138,7 @@ struct TimelineDrawContext {
 /* Returns value in frames (view-space), 5px for large strips, 1/4 of the strip for smaller. */
 float strip_handle_draw_size_get(const Scene *scene, const Strip *strip, float pixelx);
 void draw_timeline_seq(const bContext *C, const ARegion *region);
+void sequencer_scrubbing_region_draw(const bContext *C, ARegion *region);
 void draw_timeline_seq_display(const bContext *C, ARegion *region);
 
 /* `sequencer_preview_draw.cc` */
@@ -169,7 +170,7 @@ void draw_strip_thumbnails(const TimelineDrawContext &ctx,
                            StripsDrawBatch &strips_batch,
                            const Vector<StripDrawContext> &strips);
 
-/* sequencer_draw_channels.c */
+/* sequencer_channels_draw.cc */
 
 void draw_channels(const bContext *C, ARegion *region);
 void channel_draw_context_init(const bContext *C,
@@ -180,9 +181,10 @@ void channel_draw_context_init(const bContext *C,
 
 void slip_modal_keymap(wmKeyConfig *keyconf);
 VectorSet<Strip *> strip_effect_get_new_inputs(const Scene *scene,
+                                               StripType effect_type,
                                                int num_inputs,
                                                bool ignore_active = false);
-StringRef effect_inputs_validate(const VectorSet<Strip *> &inputs, int num_inputs);
+const char *effect_inputs_validate(int have_inputs, int num_inputs);
 
 /* Operator helpers. */
 bool sequencer_edit_poll(bContext *C);
@@ -314,6 +316,13 @@ void SEQUENCER_OT_image_strip_add(wmOperatorType *ot);
 void SEQUENCER_OT_effect_strip_add(wmOperatorType *ot);
 void SEQUENCER_OT_add_scene_strip_from_scene_asset(wmOperatorType *ot);
 
+void frame_filename_set(char *dst,
+                        size_t dst_len,
+                        const char *filename_stripped,
+                        const int frame,
+                        const int numdigits,
+                        const char *ext);
+
 /* `sequencer_drag_drop.cc` */
 
 void sequencer_dropboxes();
@@ -327,12 +336,13 @@ void sequencer_keymap(wmKeyConfig *keyconf);
 
 void sequencer_buttons_register(ARegionType *art);
 
-/* sequencer_modifiers.c */
+/* sequencer_modifier.cc */
 
 void SEQUENCER_OT_strip_modifier_add(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_remove(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_move(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_copy(wmOperatorType *ot);
+void SEQUENCER_OT_strip_modifier_duplicate(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_move_to_index(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_set_active(wmOperatorType *ot);
 void SEQUENCER_OT_strip_modifier_equalizer_redefine(wmOperatorType *ot);
@@ -341,6 +351,8 @@ void SEQUENCER_OT_strip_modifier_equalizer_redefine(wmOperatorType *ot);
 
 void SEQ_get_timeline_region_padding(const bContext *C, float *r_pad_top, float *r_pad_bottom);
 void SEQ_add_timeline_region_padding(const bContext *C, rctf *view_box);
+
+rctf SEQ_view_frame_fit(const SpaceSeq *sseq, const ARegion *region, rctf v2d_rect);
 
 void SEQUENCER_OT_sample(wmOperatorType *ot);
 void SEQUENCER_OT_view_all(wmOperatorType *ot);
@@ -357,15 +369,6 @@ void SEQUENCER_OT_rename_channel(wmOperatorType *ot);
 /* `sequencer_preview.cc` */
 
 void sequencer_preview_add_sound(const bContext *C, const Strip *strip);
-
-/* `sequencer_add.cc` */
-
-int sequencer_image_strip_get_minmax_frame(wmOperator *op,
-                                           int sfra,
-                                           int *r_minframe,
-                                           int *r_numdigits);
-void sequencer_image_strip_reserve_frames(
-    wmOperator *op, StripElem *se, int len, int minframe, int numdigits);
 
 /* `sequencer_retiming.cc` */
 void SEQUENCER_OT_retiming_reset(wmOperatorType *ot);
@@ -437,6 +440,8 @@ wmOperatorStatus sequencer_clipboard_paste_invoke(bContext *C,
 MenuType add_catalog_assets_menu_type();
 MenuType add_unassigned_assets_menu_type();
 MenuType add_scene_menu_type();
+
+void sequencer_strip_modifier_add_asset_register();
 
 }  // namespace ed::vse
 }  // namespace blender

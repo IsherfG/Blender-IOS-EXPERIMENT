@@ -14,28 +14,10 @@ set(INC
 set(INC_SYS
 )
 
-if(WITH_APPLE_CROSSPLATFORM)
-  set(FSMENU_SRC
-    fsmenu_system.mm
-  )
-elseif(APPLE)
-  set(FSMENU_SRC
-    fsmenu_system_macos.mm
-  )
-elseif(WIN32)
-  set(FSMENU_SRC
-    fsmenu_system_win32.cc
-  )
-else()
-  set(FSMENU_SRC
-    fsmenu_system_unix.cc
-  )
-endif()
-
-
-
 set(SRC
   asset_catalog_tree_view.cc
+  file_banner.cc
+  file_banner_remote_assets.cc
   file_context.cc
   file_draw.cc
   file_indexer.cc
@@ -44,19 +26,50 @@ set(SRC
   file_utils.cc
   filelist/filelist.cc
   filelist/filelist_filter.cc
+  filelist/filelist_readjob.cc
+  filelist/filelist_readjob_asset_library_all.cc
+  filelist/filelist_readjob_asset_library_current_file.cc
+  filelist/filelist_readjob_asset_library_essentials.cc
+  filelist/filelist_readjob_asset_library_on_disk.cc
+  filelist/filelist_readjob_asset_library_remote.cc
+  filelist/filelist_readjob_common.cc
+  filelist/filelist_readjob_directories.cc
+  filelist/filelist_readjob_library.cc
+
   filelist/filelist_sort.cc
   filesel.cc
   folder_history.cc
   fsmenu.cc
-  ${FSMENU_SRC}
   space_file.cc
 
+  file_banner.hh
   file_indexer.hh
   file_intern.hh
   filelist.hh
   filelist/filelist_intern.hh
+  filelist/filelist_readjob.hh
   fsmenu.hh
 )
+
+if(WIN32)
+  list(APPEND SRC
+    fsmenu_system_win32.cc
+  )
+elseif(APPLE)
+  if(BLENDER_PLATFORM_FILE_MENU_SOURCE)
+    list(APPEND SRC
+      ${BLENDER_PLATFORM_FILE_MENU_SOURCE}
+    )
+  else()
+    list(APPEND SRC
+      fsmenu_system_macos.mm
+    )
+  endif()
+else() # Generic UNIX
+  list(APPEND SRC
+    fsmenu_system_unix.cc
+  )
+endif()
 
 set(LIB
   PRIVATE bf::asset_system
@@ -77,7 +90,6 @@ set(LIB
 )
 
 if(WIN32)
-  add_definitions(-DNOMINMAX)
   list(APPEND LIB
     PRIVATE bf::intern::utfconv
   )
@@ -89,10 +101,6 @@ else()
   list(APPEND LIB
     bf_editor_datafiles
   )
-endif()
-
-if(WITH_IMAGE_OPENEXR)
-  add_definitions(-DWITH_IMAGE_OPENEXR)
 endif()
 
 if(WITH_IMAGE_OPENJPEG)

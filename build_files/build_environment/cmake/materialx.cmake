@@ -17,23 +17,6 @@ set(MATERIALX_EXTRA_ARGS
   -DPython_EXECUTABLE=${PYTHON_BINARY}
 )
 
-if(WITH_APPLE_CROSSPLATFORM)
-  cmake_policy(SET CMP0074 NEW)
-  # CMAKE_SYSTEM_NAME should be set to iOS to get MaterialX iOS build
-  # MATERIALX_BUILD_IOS=ON is now deprecated
-  if (NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
-    message(FATAL_ERROR "CMAKE_SYSTEM_NAME should be 'iOS' if WITH_APPLE_CROSSPLATFORM set")
-  endif()    
-  set(MATERIALX_EXTRA_ARGS
-    ${MATERIALX_EXTRA_ARGS}
-    -DMATERIALX_BUILD_GEN_GLSL=OFF
-    -DMATERIALX_TEST_RENDER=OFF
-    -DMATERIALX_BUILD_SHARED_LIBS=ON
-    -DMATERIALX_BUILD_TESTS=OFF
-    -Dpybind11_INCLUDE_DIRS=${LIBDIR}/pybind11/include
-  )
-endif()
-
 if(WIN32)
   if(BUILD_MODE STREQUAL Release)
     list(APPEND MATERIALX_EXTRA_ARGS -DPYTHON_MODULE_EXTENSION=.pyd)
@@ -55,6 +38,11 @@ ExternalProject_Add(external_materialx
   URL_HASH ${MATERIALX_HASH_TYPE}=${MATERIALX_HASH}
   PREFIX ${BUILD_DIR}/materialx
   CMAKE_GENERATOR ${PLATFORM_ALT_GENERATOR}
+
+  PATCH_COMMAND
+    ${PATCH_CMD} -p 1 -d
+      ${BUILD_DIR}/materialx/src/external_materialx 
+      -i ${PATCH_DIR}/materialx_2866.diff
 
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${LIBDIR}/materialx
@@ -113,14 +101,11 @@ else()
   harvest(external_materialx materialx/lib/cmake/MaterialX materialx/lib/cmake/MaterialX "*.cmake")
   harvest_rpath_lib(external_materialx materialx/lib materialx/lib "*${SHAREDLIBEXT}*")
   harvest(external_materialx materialx/libraries materialx/libraries "*")
-  # MaterialX does not support Python for iOS
-  if(NOT WITH_APPLE_CROSSPLATFORM)
-    harvest_rpath_python(external_materialx
-      materialx/python/MaterialX
-      python/lib/python${PYTHON_SHORT_VERSION}/site-packages/MaterialX
-      "*"
-    )
-  endif()
+  harvest_rpath_python(external_materialx
+    materialx/python/MaterialX
+    python/lib/python${PYTHON_SHORT_VERSION}/site-packages/MaterialX
+    "*"
+  )
   # We do not need anything from the resources folder, but the MaterialX config
   # file will complain if the folder does not exist, so just copy the readme.md
   # files to ensure the folder will exist.

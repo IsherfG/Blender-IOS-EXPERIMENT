@@ -46,7 +46,7 @@ namespace blender {
 #define BPy_BMLoopUV_Check(v) (Py_TYPE(v) == &BPy_BMLoopUV_Type)
 
 struct BPy_BMLoopUV {
-  PyObject_VAR_HEAD
+  PyObject_HEAD
   float *uv;
   /**
    * Pin may be null, signifying the layer doesn't exist.
@@ -194,7 +194,7 @@ PyObject *BPy_BMLoopUV_CreatePyObject(BMesh *bm, BMLoop *loop, int layer)
 #define BPy_BMVertSkin_Check(v) (Py_TYPE(v) == &BPy_BMVertSkin_Type)
 
 struct BPy_BMVertSkin {
-  PyObject_VAR_HEAD
+  PyObject_HEAD
   MVertSkin *data;
 };
 
@@ -241,7 +241,7 @@ static PyObject *bpy_bmvertskin_flag_get(BPy_BMVertSkin *self, void *flag_p)
 
 static int bpy_bmvertskin_flag_set(BPy_BMVertSkin *self, PyObject *value, void *flag_p)
 {
-  const int flag = POINTER_AS_INT(flag_p);
+  const eMVertSkinFlag flag = eMVertSkinFlag(POINTER_AS_INT(flag_p));
 
   switch (PyC_Long_AsBool(value)) {
     case true:
@@ -405,9 +405,10 @@ int BPy_BMLoopColor_AssignPyObject(MLoopCol *mloopcol, PyObject *value)
 
 PyObject *BPy_BMLoopColor_CreatePyObject(MLoopCol *mloopcol)
 {
-  PyObject *color_capsule;
-  color_capsule = PyCapsule_New(mloopcol, nullptr, nullptr);
-  return Vector_CreatePyObject_cb(color_capsule, 4, mathutils_bmloopcol_cb_index, 0);
+  PyObject *color_capsule = PyCapsule_New(mloopcol, nullptr, nullptr);
+  PyObject *ret = Vector_CreatePyObject_cb(color_capsule, 4, mathutils_bmloopcol_cb_index, 0);
+  Py_DECREF(color_capsule);
+  return ret;
 }
 
 #undef MLOOPCOL_FROM_CAPSULE
@@ -444,7 +445,7 @@ PyObject *BPy_BMLoopColor_CreatePyObject(MLoopCol *mloopcol)
 #define BPy_BMDeformVert_Check(v) (Py_TYPE(v) == &BPy_BMDeformVert_Type)
 
 struct BPy_BMDeformVert {
-  PyObject_VAR_HEAD
+  PyObject_HEAD
   MDeformVert *data;
 };
 
@@ -501,15 +502,15 @@ static int bpy_bmdeformvert_ass_subscript(BPy_BMDeformVert *self, PyObject *key,
         return -1;
       }
 
-      MDeformWeight *dw = BKE_defvert_ensure_index(self->data, i);
       const float f = PyFloat_AsDouble(value);
-      if (f == -1 && PyErr_Occurred()) { /* Parsed key not a number. */
+      if (f == -1 && PyErr_Occurred()) { /* Assigned value not a number. */
         PyErr_SetString(PyExc_TypeError,
                         "BMDeformVert[key] = x: "
                         "assigned value not a number");
         return -1;
       }
 
+      MDeformWeight *dw = BKE_defvert_ensure_index(self->data, i);
       dw->weight = clamp_f(f, 0.0f, 1.0f);
     }
     else {
@@ -520,6 +521,7 @@ static int bpy_bmdeformvert_ass_subscript(BPy_BMDeformVert *self, PyObject *key,
         PyErr_SetString(PyExc_KeyError,
                         "del BMDeformVert[key]: "
                         "key not found");
+        return -1;
       }
       BKE_defvert_remove_group(self->data, dw);
     }

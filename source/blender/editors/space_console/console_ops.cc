@@ -25,6 +25,7 @@
 #include "BLI_utildefines.h"
 
 #include "BKE_context.hh"
+#include "BKE_global.hh"
 #include "BKE_report.hh"
 #include "BKE_screen.hh"
 
@@ -94,6 +95,10 @@ static char *console_select_to_buffer(SpaceConsole *sc)
 
 static void console_select_update_primary_clipboard(SpaceConsole *sc)
 {
+  if (G.background) {
+    return;
+  }
+
   if ((WM_capabilities_flag() & WM_CAPABILITY_CLIPBOARD_PRIMARY) == 0) {
     return;
   }
@@ -178,7 +183,7 @@ static void console_scrollback_limit(SpaceConsole *sc)
 {
   int tot;
 
-  for (tot = BLI_listbase_count(&sc->scrollback); tot > U.scrollback; tot--) {
+  for (tot = sc->scrollback.count(); tot > U.scrollback; tot--) {
     console_scrollback_free(sc, static_cast<ConsoleLine *>(sc->scrollback.first));
   }
 }
@@ -211,7 +216,7 @@ static void console_lb_debug__internal(ListBaseT<ConsoleLine> *lb)
 {
   ConsoleLine *cl;
 
-  printf("%d: ", BLI_listbase_count(lb));
+  printf("%d: ", lb->count());
   for (cl = lb->first; cl; cl = cl->next) {
     printf("<%s> ", cl->line);
   }
@@ -1196,7 +1201,6 @@ static wmOperatorStatus console_paste_exec(bContext *C, wmOperator *op)
   SpaceConsole *sc = CTX_wm_space_console(C);
   ConsoleLine *ci = console_history_verify(C);
   ScrArea *area = CTX_wm_area(C);
-  ARegion *region = BKE_area_find_region_type(area, RGN_TYPE_WINDOW);
 
   int buf_str_len;
 
@@ -1208,6 +1212,7 @@ static wmOperatorStatus console_paste_exec(bContext *C, wmOperator *op)
     MEM_delete(buf_str);
     return OPERATOR_CANCELLED;
   }
+  bool context_valid = true;
   const char *buf_step = buf_str;
   do {
     const char *buf = buf_step;
@@ -1216,6 +1221,14 @@ static wmOperatorStatus console_paste_exec(bContext *C, wmOperator *op)
     if (buf != buf_str) {
       WM_operator_name_call(
           C, "CONSOLE_OT_execute", wm::OpCallContext::ExecDefault, nullptr, nullptr);
+      /* Detect context changes from actions such as loading a new file or direct
+       * context manipulation (switching area type for e.g.).
+       * While it's not an error, we only support executing in the active context.
+       * So bail out with a warning, see: #161595. */
+      if (sc != CTX_wm_space_console(C)) {
+        context_valid = false;
+        break;
+      }
       ci = console_history_verify(C);
     }
     console_delete_editable_selection(sc);
@@ -1225,10 +1238,19 @@ static wmOperatorStatus console_paste_exec(bContext *C, wmOperator *op)
 
   MEM_delete(buf_str);
 
-  console_textview_update_rect(sc, region);
-  ED_area_tag_redraw(area);
+  if (context_valid) {
+    ARegion *region = BKE_area_find_region_type(area, RGN_TYPE_WINDOW);
+    console_textview_update_rect(sc, region);
+    ED_area_tag_redraw(area);
 
-  console_scroll_bottom(region);
+    console_scroll_bottom(region);
+  }
+  else {
+    BKE_report(op->reports,
+               RPT_WARNING,
+               "Context changed during paste, "
+               "console execution may be incomplete");
+  }
 
   return OPERATOR_FINISHED;
 }

@@ -15,16 +15,6 @@ $PKG_CONFIG_PATH"
   )
 endif()
 
-if(WITH_APPLE_CROSSPLATFORM)
-  if(NOT EXISTS "${MESON_APPLE_CONFIGURATION_FILE}")
-    message(FATAL_ERROR "Harfbuzz requires cross=compilation config file at: '${MESON_APPLE_CONFIGURATION_FILE}'")
-  endif()
-
-  set(CROSS_COMPILE_COMMANDS --cross-file ${MESON_APPLE_CONFIGURATION_FILE})
-else()
-  set(CROSS_COMPILE_COMMANDS)
-endif()
-
 set(HARFBUZZ_EXTRA_OPTIONS
   -Dtests=disabled
   -Dfreetype=enabled
@@ -33,7 +23,6 @@ set(HARFBUZZ_EXTRA_OPTIONS
   # Only used for command line utilities,
   # disable as this would add an additional & unnecessary build-dependency.
   -Dcairo=disabled
-  ${MESON_BUILD_TYPE}
 )
 
 ExternalProject_Add(external_harfbuzz
@@ -44,10 +33,11 @@ ExternalProject_Add(external_harfbuzz
 
   CONFIGURE_COMMAND ${HARFBUZZ_CONFIGURE_ENV} &&
     ${CMAKE_COMMAND} -E env ${HARFBUZZ_PKG_ENV} ${MESON} setup
-      --prefix ${LIBDIR}/harfbuzz ${HARFBUZZ_EXTRA_OPTIONS}
-      --default-library static
+      --prefix ${LIBDIR}/harfbuzz
       --libdir lib
-      ${CROSS_COMPILE_COMMANDS}
+      --default-library static
+      ${MESON_BUILD_TYPE}
+      ${HARFBUZZ_EXTRA_OPTIONS}
       ${BUILD_DIR}/harfbuzz/src/external_harfbuzz-build
       ${BUILD_DIR}/harfbuzz/src/external_harfbuzz
 
@@ -58,18 +48,11 @@ ExternalProject_Add(external_harfbuzz
 
 add_dependencies(
   external_harfbuzz
+  external_python
   external_freetype
+  # Needed for `MESON`.
+  external_python_site_packages
 )
-
-if(NOT WITH_APPLE_CROSSPLATFORM)
-  # Ipad build will use cross-compiled Python tools.
-  add_dependencies(
-    external_harfbuzz
-    external_python
-    # Needed for `MESON`.
-    external_python_site_packages
-  )
-endif()
 
 if(WIN32)
   if(BUILD_MODE STREQUAL Release)

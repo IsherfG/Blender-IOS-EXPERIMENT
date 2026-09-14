@@ -2,13 +2,6 @@
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
-if(WITH_APPLE_CROSSPLATFORM)
-  # Building for non-local architecture.
-  set(CROSS_COMPILE_FLAGS "--host=arm")
-else()
-  set(CROSS_COMPILE_FLAGS)
-endif()
-
 if(MSVC)
   set(OPUS_CMAKE_ARGS
     -DPACKAGE_VERSION=${OPUS_VERSION}
@@ -32,7 +25,6 @@ if(NOT WIN32)
         --enable-static
         --with-pic
         --disable-maintainer-mode
-	${CROSS_COMPILE_FLAGS}
 
     BUILD_COMMAND ${CONFIGURE_ENV} &&
       cd ${BUILD_DIR}/opus/src/external_opus/ &&

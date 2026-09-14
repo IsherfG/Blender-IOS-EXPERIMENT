@@ -2,9 +2,14 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later */
 
+/* GHOST's cross-platform C++ interfaces intentionally do not carry Objective-C
+ * nullability qualifiers. UIKit makes Clang request them for every pointer. */
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 #include "GHOST_SystemIOS.hh"
 
 #include "GHOST_ContextIOS.hh"
+#include "GHOST_IOSVirtualPointer.hh"
 #include "GHOST_WindowIOS.hh"
 
 #include "GHOST_Debug.hh"
@@ -21,9 +26,6 @@
 #import <MetalKit/MTKView.h>
 #import <UIKit/UIKit.h>
 
-#include <sys/sysctl.h>
-#include <sys/time.h>
-
 // #define IOS_SYSTEM_LOGGING
 #if defined(IOS_SYSTEM_LOGGING)
 #  define IOS_SYSTEM_LOG(...) NSLog(__VA_ARGS__)
@@ -31,21 +33,32 @@
 #  define IOS_SYSTEM_LOG(...)
 #endif
 
-extern "C" {
-struct bContext;
-static bContext *C = nullptr;
-}
-
 int argc = 0;
 const char **argv = nullptr;
 
+namespace blender {
+struct bContext;
+static bContext *C = nullptr;
+
 /* Implemented in wm.cc. */
 void WM_main_loop_body(bContext *C);
+}  // namespace blender
+
 int main_ios_callback(int argc, const char **argv);
+
+static UIWindowScene *g_active_window_scene = nil;
+static bool g_blender_started = false;
+
+UIWindowScene *GHOST_IOS_activeWindowScene()
+{
+  return g_active_window_scene;
+}
+
+static BOOL IOS_open_document_url(NSURL *url);
 
 @interface IOSAppDelegate : UIResponder <UIApplicationDelegate>
 
-@property(strong, nonatomic) UIWindow *window;
+@property(strong, nonatomic) NSMutableSet<NSURL *> *securityScopedURLs;
 
 @end
 
@@ -54,20 +67,118 @@ int main_ios_callback(int argc, const char **argv);
 - (BOOL)application:(UIApplication *)application
     didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-  main_ios_callback(argc, argv);
-
+  (void)application;
+  (void)launchOptions;
+  self.securityScopedURLs = [NSMutableSet set];
   return YES;
 }
 
 - (BOOL)application:(UIApplication *)application
-            openURL:(NSURL *)url
-            options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options
+             openURL:(NSURL *)url
+             options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options
+{
+  (void)application;
+  (void)options;
+  return IOS_open_document_url(url);
+}
+
+- (void)applicationWillTerminate:(UIApplication *)application
+{
+  (void)application;
+  for (NSURL *url in self.securityScopedURLs) {
+    [url stopAccessingSecurityScopedResource];
+  }
+  [self.securityScopedURLs removeAllObjects];
+}
+
+@end
+
+static BOOL IOS_open_document_url(NSURL *url)
 {
   GHOST_SystemIOS *system = static_cast<GHOST_SystemIOS *>(GHOST_ISystem::getSystem());
+  if (system == nullptr || !url.isFileURL) {
+    return NO;
+  }
 
-  system->handleOpenDocumentRequest(url.path);
+  /* Files provided by document providers can live outside the app sandbox.
+   * Keep their security scope alive because Blender opens and may save them
+   * asynchronously after this callback returns. */
+  IOSAppDelegate *app_delegate = (IOSAppDelegate *)[UIApplication sharedApplication].delegate;
+  const BOOL hasSecurityScope = [url startAccessingSecurityScopedResource];
+  if (hasSecurityScope) {
+    [app_delegate.securityScopedURLs addObject:url];
+  }
 
-  return YES;
+  const bool handled = system->handleOpenDocumentRequest(url.path);
+  if (!handled && hasSecurityScope) {
+    [url stopAccessingSecurityScopedResource];
+    [app_delegate.securityScopedURLs removeObject:url];
+  }
+
+  return handled ? YES : NO;
+}
+
+@interface IOSSceneDelegate : UIResponder <UIWindowSceneDelegate>
+@end
+
+@implementation IOSSceneDelegate
+
+- (void)scene:(UIScene *)scene
+    willConnectToSession:(UISceneSession *)session
+                options:(UISceneConnectionOptions *)connectionOptions
+{
+  (void)session;
+  if (![scene isKindOfClass:[UIWindowScene class]]) {
+    return;
+  }
+
+  g_active_window_scene = (UIWindowScene *)scene;
+  if (!g_blender_started) {
+    g_blender_started = true;
+    main_ios_callback(argc, argv);
+  }
+
+  for (UIOpenURLContext *context in connectionOptions.URLContexts) {
+    IOS_open_document_url(context.URL);
+  }
+}
+
+- (void)scene:(UIScene *)scene openURLContexts:(NSSet<UIOpenURLContext *> *)URLContexts
+{
+  (void)scene;
+  for (UIOpenURLContext *context in URLContexts) {
+    IOS_open_document_url(context.URL);
+  }
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene
+{
+  (void)scene;
+  GHOST_SystemIOS *system = static_cast<GHOST_SystemIOS *>(GHOST_ISystem::getSystem());
+  if (system != nullptr && system->current_active_window_ != nullptr) {
+    system->handleWindowEvent(GHOST_kEventWindowDeactivate, system->current_active_window_);
+  }
+}
+
+- (void)sceneDidBecomeActive:(UIScene *)scene
+{
+  (void)scene;
+  GHOST_SystemIOS *system = static_cast<GHOST_SystemIOS *>(GHOST_ISystem::getSystem());
+  if (system == nullptr) {
+    return;
+  }
+
+  system->handleApplicationBecomeActiveEvent();
+  if (system->current_active_window_ != nullptr) {
+    system->handleWindowEvent(GHOST_kEventWindowActivate, system->current_active_window_);
+  }
+}
+
+- (void)sceneDidDisconnect:(UIScene *)scene
+{
+  if (scene == g_active_window_scene) {
+    g_active_window_scene = nil;
+  }
 }
 
 @end
@@ -97,24 +208,22 @@ int main_ios_callback(int argc, const char **argv);
 
   /* We should always have a window... */
   if (system->current_active_window_) {
+    system->current_active_window_->beginFrame();
 
     /* If the current window has some outstanding swaps we need to
      * service them before handing control back to Blender otherwise
      * they may go missing. */
-    if (system->current_active_window_->deferred_swap_buffers_count) {
-      IOS_SYSTEM_LOG(@"Issuing oustanding swaps");
+    if (system->current_active_window_->hasDeferredSwapBuffers()) {
+      IOS_SYSTEM_LOG(@"Issuing outstanding swap");
       system->current_active_window_->flushDeferredSwapBuffers();
-      /* Make sure we get another call to draw. */
-      system->current_active_window_->needsDisplayUpdate();
+      system->current_active_window_->endFrame();
       return;
     }
-
-    system->current_active_window_->beginFrame();
   }
 
   /* Run the main loop to handle all events. */
-  if (C) {
-    WM_main_loop_body(C);
+  if (blender::C) {
+    blender::WM_main_loop_body(blender::C);
   }
 
   if (system->current_active_window_) {
@@ -134,17 +243,19 @@ int main_ios_callback(int argc, const char **argv);
 
 - (void)mtkView:(nonnull MTKView *)view drawableSizeWillChange:(CGSize)size
 {
+  (void)view;
+  (void)size;
   GHOST_SystemIOS *system = static_cast<GHOST_SystemIOS *>(GHOST_ISystem::getSystem());
   if (!system->current_active_window_) {
     return;
   }
 
-  system->pushEvent(new GHOST_Event(
-      system->getMilliSeconds(), GHOST_kEventWindowSize, system->current_active_window_));
+  system->handleWindowEvent(GHOST_kEventWindowSize, system->current_active_window_);
 }
 
 @end
 
+namespace blender {
 int GHOST_iosmain(int _argc, const char **_argv)
 {
   argc = _argc;
@@ -159,30 +270,9 @@ void GHOST_iosfinalize(bContext *CTX)
 {
   C = CTX;
 }
+}  // namespace blender
 
-#pragma mark KeyMap, mouse converters
-
-static GHOST_TButton convertButton(int button)
-{
-  switch (button) {
-    case 0:
-      return GHOST_kButtonMaskLeft;
-    case 1:
-      return GHOST_kButtonMaskRight;
-    case 2:
-      return GHOST_kButtonMaskMiddle;
-    case 3:
-      return GHOST_kButtonMaskButton4;
-    case 4:
-      return GHOST_kButtonMaskButton5;
-    case 5:
-      return GHOST_kButtonMaskButton6;
-    case 6:
-      return GHOST_kButtonMaskButton7;
-    default:
-      return GHOST_kButtonMaskLeft;
-  }
-}
+#pragma mark Key map
 
 /**
  * Converts Mac raw-key codes (same for Cocoa & Carbon)
@@ -395,37 +485,9 @@ extern "C" int GHOST_HACK_getFirstFile(char buf[FIRSTFILEBUFLG])
 
 GHOST_SystemIOS::GHOST_SystemIOS()
 {
-  int mib[2];
-  struct timeval boottime;
-  size_t len;
-  char *rstring = NULL;
-
-  modifier_mask_ = 0;
   outside_loop_event_processed_ = false;
-  need_delayed_application_become_active_event_processing_ = false;
-
-  /* TODO: sysctl likely should be replaced with another approach. */
-  mib[0] = CTL_KERN;
-  mib[1] = KERN_BOOTTIME;
-  len = sizeof(struct timeval);
-
-  sysctl(mib, 2, &boottime, &len, NULL, 0);
-  m_start_time = ((boottime.tv_sec * 1000) + (boottime.tv_usec / 1000));
-
-  /* Detect multi-touch track-pad. */
-  mib[0] = CTL_HW;
-  mib[1] = HW_MODEL;
-  sysctl(mib, 2, NULL, &len, NULL, 0);
-  rstring = (char *)malloc(len);
-  sysctl(mib, 2, rstring, &len, NULL, 0);
-
-  free(rstring);
-  rstring = NULL;
-
   ignore_window_sized_message_ = false;
-  ignore_momentum_scroll_ = false;
-  multi_touch_scroll_ = false;
-  last_warp_timestamp_ = 0;
+  virtual_pointer_ = std::make_unique<GHOST_IOSVirtualPointer>(this);
 }
 
 GHOST_SystemIOS::~GHOST_SystemIOS() {}
@@ -446,10 +508,9 @@ GHOST_TSuccess GHOST_SystemIOS::init()
 
 uint64_t GHOST_SystemIOS::getMilliSeconds() const
 {
-  struct timeval currentTime;
-
-  gettimeofday(&currentTime, NULL);
-  return ((currentTime.tv_sec * 1000) + (currentTime.tv_usec / 1000) - m_start_time);
+  /* Match UIKit event timestamps with a monotonic clock. Wall-clock changes
+   * must never make Blender event time jump backwards. */
+  return uint64_t([NSProcessInfo processInfo].systemUptime * 1000.0);
 }
 
 uint8_t GHOST_SystemIOS::getNumDisplays() const
@@ -459,8 +520,11 @@ uint8_t GHOST_SystemIOS::getNumDisplays() const
 
 void GHOST_SystemIOS::getMainDisplayDimensions(uint32_t &width, uint32_t &height) const
 {
-  CGRect screenRect = [[UIScreen mainScreen] bounds];
-  CGFloat scaling_fac = [UIScreen mainScreen].scale;
+  UIWindowScene *window_scene = GHOST_IOS_activeWindowScene();
+  GHOST_ASSERT(window_scene != nil, "An active UIWindowScene is required");
+  UIScreen *screen = window_scene.screen;
+  CGRect screenRect = screen.bounds;
+  CGFloat scaling_fac = screen.scale;
   CGFloat screenWidth = screenRect.size.width * scaling_fac;
   CGFloat screenHeight = screenRect.size.height * scaling_fac;
 
@@ -494,9 +558,19 @@ GHOST_IWindow *GHOST_SystemIOS::createWindow(const char *title,
   const GHOST_ContextParams context_params = GHOST_CONTEXT_PARAMS_FROM_GPU_SETTINGS(gpu_settings);
   GHOST_IWindow *window = nullptr;
   @autoreleasepool {
+    /* The first managed GHOST window owns the app scene. All later windows are closable overlays,
+     * regardless of whether Blender supplies a parent for them. */
+    const bool is_main_window = window_manager_->getWindows().empty();
+
+    /* Every iOS window fills the scene. Top-level Blender windows still need somewhere to return
+     * when closed, even though Blender intentionally gives them no parent. */
+    const GHOST_IWindow *close_return_window =
+        parent_window ? parent_window : current_active_window_;
 
     /* Create window at native size. */
-    CGRect bounds = [[UIScreen mainScreen] bounds];
+    UIWindowScene *window_scene = GHOST_IOS_activeWindowScene();
+    GHOST_ASSERT(window_scene != nil, "An active UIWindowScene is required");
+    CGRect bounds = window_scene.coordinateSpace.bounds;
 
     window = (GHOST_IWindow *)new GHOST_WindowIOS(this,
                                                   title,
@@ -507,16 +581,18 @@ GHOST_IWindow *GHOST_SystemIOS::createWindow(const char *title,
                                                   state,
                                                   gpu_settings.context_type,
                                                   context_params,
+                                                  is_main_window,
                                                   is_dialog,
-                                                  (GHOST_WindowIOS *)parent_window);
+                                                  (GHOST_WindowIOS *)close_return_window);
 
     if (window->getValid()) {
       // Store the pointer to the window
       GHOST_ASSERT(window_manager_, "m_windowManager not initialized");
       window_manager_->addWindow(window);
       window_manager_->setActiveWindow(window);
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowActivate, window));
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowSize, window));
+      pushEvent(
+          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowActivate, window));
+      pushEvent(std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowSize, window));
     }
     else {
       GHOST_PRINT("GHOST_SystemIOS::createWindow(): window invalid\n");
@@ -558,62 +634,50 @@ GHOST_TSuccess GHOST_SystemIOS::disposeContext(GHOST_IContext *context)
   return GHOST_kSuccess;
 }
 
-/**
- * \note : returns 0,0 on ios as no cursor is present.
- * TODO: If external mouse or trackpad is connected, we can query cursor position.
- */
-GHOST_TSuccess GHOST_SystemIOS::getCursorPosition(int32_t & /*x*/, int32_t & /*y*/) const
+/** Return the virtual pointer location in scene screen coordinates. */
+GHOST_TSuccess GHOST_SystemIOS::getCursorPosition(int32_t &x, int32_t &y) const
 {
-  /* iOS Passthrough. */
-  GHOST_IWindow *window = this->window_manager_->getActiveWindow();
+  return virtual_pointer_->getCursorPosition(x, y);
+}
+
+/** Update software cursor state from scene screen coordinates.
+ * UIKit does not allow applications to warp the system pointer. */
+GHOST_TSuccess GHOST_SystemIOS::setCursorPosition(int32_t x, int32_t y)
+{
+  GHOST_WindowIOS *window = static_cast<GHOST_WindowIOS *>(window_manager_->getActiveWindow());
   if (!window) {
     return GHOST_kFailure;
   }
-  // GHOST_ASSERT(FALSE,"GHOST_SystemIOS::getCursorPosition unsupported on iOS");
-  return GHOST_kSuccess;
-}
 
-/**
- * \note : expect Cocoa screen coordinates
- * TODO: If external mouse or trackpad is connected, we can set cursor position.
- */
-GHOST_TSuccess GHOST_SystemIOS::setCursorPosition(int32_t x, int32_t y)
-{
-  GHOST_WindowIOS *window = (GHOST_WindowIOS *)window_manager_->getActiveWindow();
-  if (!window)
-    return GHOST_kFailure;
-
-  pushEvent(new GHOST_EventCursor(
-      getMilliSeconds(), GHOST_kEventCursorMove, window, x, y, window->getTabletData()));
-  outside_loop_event_processed_ = true;
+  int32_t client_x;
+  int32_t client_y;
+  window->screenToClient(x, y, client_x, client_y);
+  virtual_pointer_->warp(client_x, client_y);
 
   return GHOST_kSuccess;
 }
 
-GHOST_TSuccess GHOST_SystemIOS::setMouseCursorPosition(int32_t /*x*/, int32_t /*y*/)
+GHOST_TSuccess GHOST_SystemIOS::setMouseCursorPosition(int32_t x, int32_t y)
 {
-  /* iOS Passthrough. */
-  GHOST_WindowIOS *window = (GHOST_WindowIOS *)window_manager_->getActiveWindow();
-  if (!window)
-    return GHOST_kFailure;
-  GHOST_ASSERT(FALSE, "GHOST_SystemIOS::setMouseCursorPosition unsupported on iOS");
+  return setCursorPosition(x, y);
+}
+
+GHOST_TSuccess GHOST_SystemIOS::getModifierKeys(GHOST_ModifierKeys &keys) const
+{
+  keys = modifier_keys_;
   return GHOST_kSuccess;
 }
 
-GHOST_TSuccess GHOST_SystemIOS::getModifierKeys(GHOST_ModifierKeys & /*keys*/) const
+GHOST_TSuccess GHOST_SystemIOS::getButtons(GHOST_Buttons &buttons) const
 {
-  /* iOS Passthrough. */
-  return GHOST_kSuccess;
-}
-
-GHOST_TSuccess GHOST_SystemIOS::getButtons(GHOST_Buttons & /*buttons*/) const
-{
-  /* iOS Passthrough. */
+  virtual_pointer_->getButtons(buttons);
   return GHOST_kSuccess;
 }
 GHOST_TCapabilityFlag GHOST_SystemIOS::getCapabilities() const
 {
-  return GHOST_TCapabilityFlag(GHOST_kCapabilityGPUReadFrontBuffer);
+  return GHOST_TCapabilityFlag(GHOST_kCapabilityCursorWarp |
+                               GHOST_kCapabilityGPUReadFrontBuffer |
+                               GHOST_kCapabilityOnScreenKeyboard);
 }
 
 #pragma mark Event handlers
@@ -623,17 +687,18 @@ GHOST_TCapabilityFlag GHOST_SystemIOS::getCapabilities() const
  */
 bool GHOST_SystemIOS::processEvents(bool /*waitForEvent*/)
 {
-  /*
-   Touch screen events are being processed through the UIView interactions
-   We may need some additional code here to handle key presses if an external keybaord
-   is attached
-   */
-  return true;
+  /* UIKit dispatches input on the application thread before Blender polls the
+   * GHOST queue. Consume the edge-triggered flag instead of reporting a fake
+   * event every frame, which otherwise keeps idle devices needlessly busy. */
+  const bool processed = outside_loop_event_processed_;
+  outside_loop_event_processed_ = false;
+  return processed;
 }
 
 GHOST_TSuccess GHOST_SystemIOS::handleApplicationBecomeActiveEvent()
 {
-  modifier_mask_ = 0;
+  modifier_keys_.clear();
+  virtual_pointer_->clearButtons();
 
   outside_loop_event_processed_ = true;
   return GHOST_kSuccess;
@@ -655,6 +720,18 @@ void GHOST_SystemIOS::notifyExternalEventProcessed()
   outside_loop_event_processed_ = true;
 }
 
+GHOST_TSuccess GHOST_SystemIOS::pushEvent(std::unique_ptr<const GHOST_IEvent> event)
+{
+  outside_loop_event_processed_ = true;
+  return GHOST_System::pushEvent(std::move(event));
+}
+
+void GHOST_SystemIOS::updateModifierState(const GHOST_TModifierKey modifier, const bool down)
+{
+  modifier_keys_.set(modifier, down);
+  notifyExternalEventProcessed();
+}
+
 GHOST_TSuccess GHOST_SystemIOS::handleWindowEvent(GHOST_TEventType eventType,
                                                   GHOST_WindowIOS *window)
 {
@@ -663,47 +740,54 @@ GHOST_TSuccess GHOST_SystemIOS::handleWindowEvent(GHOST_TEventType eventType,
   }
   switch (eventType) {
     case GHOST_kEventWindowClose:
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowClose, window));
+      pushEvent(std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowClose, window));
       break;
     case GHOST_kEventWindowActivate:
       window_manager_->setActiveWindow(window);
       window->loadCursor(window->getCursorVisibility(), window->getCursorShape());
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowActivate, window));
+      pushEvent(
+          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowActivate, window));
       break;
     case GHOST_kEventWindowDeactivate:
       window_manager_->setWindowInactive(window);
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowDeactivate, window));
+      pushEvent(
+          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowDeactivate, window));
       break;
     case GHOST_kEventWindowUpdate:
       if (native_pixel_) {
         window->setNativePixelSize();
-        pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventNativeResolutionChange, window));
+        pushEvent(std::make_unique<GHOST_Event>(
+            getMilliSeconds(), GHOST_kEventNativeResolutionChange, window));
       }
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowUpdate, window));
+      pushEvent(
+          std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowUpdate, window));
       break;
     case GHOST_kEventWindowMove:
-      pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowMove, window));
+      pushEvent(std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowMove, window));
       break;
     case GHOST_kEventWindowSize:
       if (!ignore_window_sized_message_) {
         // Enforce only one resize message per event loop
         // (coalescing all the live resize messages)
         window->updateDrawingContext();
-        pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventWindowSize, window));
+        pushEvent(
+            std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventWindowSize, window));
         // Mouse up event is trapped by the resizing event loop,
         // so send it anyway to the window manager.
-        pushEvent(new GHOST_EventButton(getMilliSeconds(),
-                                        GHOST_kEventButtonUp,
-                                        window,
-                                        GHOST_kButtonMaskLeft,
-                                        GHOST_TABLET_DATA_NONE));
+        pushEvent(std::make_unique<GHOST_EventButton>(getMilliSeconds(),
+                                                      GHOST_kEventButtonUp,
+                                                      window,
+                                                      GHOST_kButtonMaskLeft,
+                                                      GHOST_TABLET_DATA_NONE));
       }
       break;
     case GHOST_kEventNativeResolutionChange:
 
       if (native_pixel_) {
-        pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventNativeResolutionChange, window));
+        pushEvent(std::make_unique<GHOST_Event>(
+            getMilliSeconds(), GHOST_kEventNativeResolutionChange, window));
       }
+      break;
 
     default:
       return GHOST_kFailure;
@@ -747,22 +831,6 @@ const char *GHOST_SystemIOS::getKeyboardInput(GHOST_IWindow *window)
   return windowIOS->getLastKeyboardString();
 }
 
-GHOST_TSuccess GHOST_SystemIOS::startSecurityScopedFileAccess(const char *filepath)
-{
-  NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:filepath]];
-  BOOL success = [url startAccessingSecurityScopedResource];
-
-  return success ? GHOST_kSuccess : GHOST_kFailure;
-}
-
-GHOST_TSuccess GHOST_SystemIOS::stopSecurityScopedFileAccess(const char *filepath)
-{
-  NSURL *url = [NSURL fileURLWithPath:[NSString stringWithUTF8String:filepath]];
-  [url stopAccessingSecurityScopedResource];
-
-  return GHOST_kSuccess;
-}
-
 // Note: called from NSWindow subclass
 GHOST_TSuccess GHOST_SystemIOS::handleDraggingEvent(GHOST_TEventType eventType,
                                                     GHOST_TDragnDropTypes draggedObjectType,
@@ -779,7 +847,7 @@ GHOST_TSuccess GHOST_SystemIOS::handleDraggingEvent(GHOST_TEventType eventType,
     case GHOST_kEventDraggingUpdated:
     case GHOST_kEventDraggingExited:
       window->clientToScreenIntern(mouseX, mouseY, mouseX, mouseY);
-      pushEvent(new GHOST_EventDragnDrop(
+      pushEvent(std::make_unique<GHOST_EventDragnDrop>(
           getMilliSeconds(), eventType, draggedObjectType, window, mouseX, mouseY, nullptr));
       break;
 
@@ -862,7 +930,7 @@ GHOST_TSuccess GHOST_SystemIOS::handleDraggingEvent(GHOST_TEventType eventType,
           break;
       }
 
-      pushEvent(new GHOST_EventDragnDrop(
+      pushEvent(std::make_unique<GHOST_EventDragnDrop>(
           getMilliSeconds(), eventType, draggedObjectType, window, mouseX, mouseY, eventData));
 
       break;
@@ -883,7 +951,7 @@ void GHOST_SystemIOS::handleQuitRequest()
     return;
 
   // Push the event to Blender so it can open a dialog if needed
-  pushEvent(new GHOST_Event(getMilliSeconds(), GHOST_kEventQuitRequest, window));
+  pushEvent(std::make_unique<GHOST_Event>(getMilliSeconds(), GHOST_kEventQuitRequest, window));
   outside_loop_event_processed_ = true;
 }
 
@@ -912,50 +980,13 @@ bool GHOST_SystemIOS::handleOpenDocumentRequest(void *filepathStr)
     memcpy(temp_buff, [filepath cStringUsingEncoding:NSUTF8StringEncoding], filenameTextSize);
     temp_buff[filenameTextSize] = '\0';
 
-    pushEvent(new GHOST_EventString(getMilliSeconds(),
-                                    GHOST_kEventOpenMainFile,
-                                    current_active_window_,
-                                    static_cast<GHOST_TEventDataPtr>(temp_buff)));
+    pushEvent(std::make_unique<GHOST_EventString>(getMilliSeconds(),
+                                                  GHOST_kEventOpenMainFile,
+                                                  current_active_window_,
+                                                  static_cast<GHOST_TEventDataPtr>(temp_buff)));
   }
   return YES;
 }
-
-/* None of this currently required for iOS */
-#if 0
-GHOST_TSuccess GHOST_SystemIOS::handleTabletEvent(void * /*eventPtr*/, short /*eventType*/)
-{
-  GHOST_WindowIOS *window = (GHOST_WindowIOS *)window_manager_->getActiveWindow();
-  if (!window)
-    return GHOST_kFailure;
-  
-  return GHOST_kSuccess;
-}
-
-bool GHOST_SystemIOS::handleTabletEvent(void * /*eventPtr*/)
-{
-  /* TODO: Handle events. */
-  GHOST_ASSERT(FALSE,"GHOST_SystemIOS::handleTabletEvent unsupported on iOS");
-  return true;
-}
-
-GHOST_TSuccess GHOST_SystemIOS::handleMouseEvent(void * /*eventPtr*/)
-{
-  /* TODO: Handle events (here or elsewhere).
-   * NOTE: "Touch" events already handled in other code paths above. */
-  GHOST_ASSERT(FALSE,"GHOST_SystemIOS::handleMouseEvent unsupported on iOS");
-  return GHOST_kSuccess;
-}
-
-#  include <Metal/Metal.h>
-bool frame_capture = false;
-extern id<MTLDevice> extern_device;
-GHOST_TSuccess GHOST_SystemIOS::handleKeyEvent(void * /*eventPtr*/)
-{
-  /* TODO: Handle events (here or elsewhere). */
-  GHOST_ASSERT(FALSE,"GHOST_SystemIOS::handleKeyEvent unsupported on iOS");
-  return GHOST_kSuccess;
-}
-#endif
 
 #pragma mark Clipboard get/set
 
@@ -999,6 +1030,5 @@ void GHOST_SystemIOS::putClipboard(const char *buffer, bool selection) const
 
 GHOST_IWindow *GHOST_SystemIOS::getWindowUnderCursor(int32_t /*x*/, int32_t /*y*/)
 {
-  GHOST_ASSERT(FALSE, "GHOST_SystemIOS::getWindowUnderCursor unsupported on iOS");
-  return nullptr;
+  return window_manager_->getActiveWindow();
 }

@@ -621,7 +621,7 @@ ccl_device_inline float3 select(const MaskType mask, const float3 a, const float
 #  ifdef __KERNEL_SSE42__
   return float3(_mm_blendv_ps(b.m128, a.m128, _mm_castsi128_ps(mask.m128)));
 #  else
-  return float4(
+  return float3(
       _mm_or_ps(_mm_and_ps(_mm_castsi128_ps(mask), a), _mm_andnot_ps(_mm_castsi128_ps(mask), b)));
 #  endif
 #else
@@ -646,7 +646,22 @@ ccl_device_inline float3 safe_pow(const float3 a, const float3 b)
   return make_float3(safe_powf(a.x, b.x), safe_powf(a.y, b.y), safe_powf(a.z, b.z));
 }
 
-ccl_device_inline auto isequal_mask(const float3 a, const float3 b)
+ccl_device_inline float3 safe_log(const float3 v)
+{
+  return select(v > zero_float3(), log(v), zero_float3());
+}
+
+ccl_device_inline void sincos(const float3 x, ccl_private float3 *sine, ccl_private float3 *cosine)
+{
+#if defined(__KERNEL_METAL__)
+  *sine = sincos(x, *cosine);
+#else
+  *sine = sin(x);
+  *cosine = cos(x);
+#endif
+}
+
+ccl_device_inline auto component_wise_equal(const float3 a, const float3 b)
 {
 #if defined(__KERNEL_METAL__)
   return a == b;
@@ -659,14 +674,14 @@ ccl_device_inline auto isequal_mask(const float3 a, const float3 b)
 #endif
 }
 
-ccl_device_inline auto is_zero_mask(const float3 a)
+ccl_device_inline auto component_is_zero(const float3 a)
 {
-  return isequal_mask(a, zero_float3());
+  return component_wise_equal(a, zero_float3());
 }
 
 ccl_device_inline float3 safe_floored_fmod(const float3 a, const float3 b)
 {
-  return select(is_zero_mask(b), zero_float3(), a - floor(a / b) * b);
+  return select(component_is_zero(b), zero_float3(), a - floor(a / b) * b);
 }
 
 ccl_device_inline float3 wrap(const float3 value, const float3 max, const float3 min)
@@ -676,7 +691,7 @@ ccl_device_inline float3 wrap(const float3 value, const float3 max, const float3
 
 ccl_device_inline float3 safe_fmod(const float3 a, const float3 b)
 {
-  return select(is_zero_mask(b), zero_float3(), fmod(a, b));
+  return select(component_is_zero(b), zero_float3(), fmod(a, b));
 }
 
 ccl_device_inline float3 compatible_sign(const float3 v)
@@ -718,35 +733,6 @@ ccl_device_inline float triangle_area(const ccl_private float3 &v1,
 ccl_device_inline void make_orthonormals(const float3 N,
                                          ccl_private float3 *a,
                                          ccl_private float3 *b)
-{
-#if 0
-  if (fabsf(N.y) >= 0.999f) {
-    *a = make_float3(1, 0, 0);
-    *b = make_float3(0, 0, 1);
-    return;
-  }
-  if (fabsf(N.z) >= 0.999f) {
-    *a = make_float3(1, 0, 0);
-    *b = make_float3(0, 1, 0);
-    return;
-  }
-#endif
-
-  if (N.x != N.y || N.x != N.z) {
-    *a = make_float3(N.z - N.y, N.x - N.z, N.y - N.x);  //(1,1,1)x N
-  }
-  else {
-    *a = make_float3(N.z - N.y, N.x + N.z, -N.y - N.x);  //(-1,1,1)x N
-  }
-
-  *a = normalize(*a);
-  *b = cross(N, *a);
-}
-
-/* Packed float3 version. */
-ccl_device_inline void make_orthonormals(const packed_float3 N,
-                                         ccl_private packed_float3 *a,
-                                         ccl_private packed_float3 *b)
 {
 #if 0
   if (fabsf(N.y) >= 0.999f) {

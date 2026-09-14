@@ -55,7 +55,8 @@ class GHOST_WindowIOS : public GHOST_Window {
                   GHOST_TWindowState state,
                   GHOST_TDrawingContextType type,
                   const GHOST_ContextParams &context_params,
-                  bool /*is_dialog*/,
+                  bool is_main_window,
+                  bool is_dialog,
                   GHOST_WindowIOS *parent_window);
 
   /**
@@ -80,6 +81,11 @@ class GHOST_WindowIOS : public GHOST_Window {
    * Swaps the current framebuffer to the screen
    * \return Success or failure
    */
+  GHOST_TSuccess swapBufferAcquire() override
+  {
+    return GHOST_kSuccess;
+  }
+
   GHOST_TSuccess swapBufferRelease() override;
 
   /**
@@ -92,11 +98,6 @@ class GHOST_WindowIOS : public GHOST_Window {
    * \param title: The title displayed in the title bar.
    */
   std::string getTitle() const override;
-
-  /**
-   * Makes sure we get another draw request.
-   */
-  void needsDisplayUpdate();
 
   /**
    * Returns the window rectangle dimensions.
@@ -205,24 +206,14 @@ class GHOST_WindowIOS : public GHOST_Window {
    * Sets the progress bar value displayed in the window/application icon
    * \param progress: The progress percentage (0.0 to 1.0).
    */
-  GHOST_TSuccess setProgressBar(float progress);
+  GHOST_TSuccess setProgressBar(float progress) override;
 
   /**
    * Hides the progress bar icon
    */
-  GHOST_TSuccess endProgressBar();
+  GHOST_TSuccess endProgressBar() override;
 
   void setNativePixelSize(void);
-
-  GHOST_TSuccess beginFullScreen() const
-  {
-    return GHOST_kFailure;
-  }
-
-  GHOST_TSuccess endFullScreen() const
-  {
-    return GHOST_kFailure;
-  }
 
   /** public function to get the window containing the OpenGL view */
   UIView *getUIView() const
@@ -249,6 +240,16 @@ class GHOST_WindowIOS : public GHOST_Window {
     return system_ios_;
   }
 
+  bool hasParentWindow() const
+  {
+    return parent_window_ != nullptr;
+  }
+
+  bool isMainWindow() const
+  {
+    return is_main_window_;
+  }
+
   /* Active window controls. We can only present on active windows.  */
   void requestToActivateWindow();
   void requestToDeactivateWindow();
@@ -265,32 +266,32 @@ class GHOST_WindowIOS : public GHOST_Window {
    * \param type: The type of rendering context create.
    * \return Indication of success.
    */
-  GHOST_Context *newDrawingContext(GHOST_TDrawingContextType type);
+  GHOST_Context *newDrawingContext(GHOST_TDrawingContextType type) override;
 
   /**
    * Invalidates the contents of this window.
    * \return Indication of success.
    */
-  GHOST_TSuccess invalidate();
+  GHOST_TSuccess invalidate() override;
 
   /**
    * Sets the cursor visibility on the window using
    * native window system calls.
    */
-  GHOST_TSuccess setWindowCursorVisibility(bool visible);
+  GHOST_TSuccess setWindowCursorVisibility(bool visible) override;
 
   /**
    * Sets the cursor grab on the window using
    * native window system calls.
    */
-  GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode mode);
+  GHOST_TSuccess setWindowCursorGrab(GHOST_TGrabCursorMode mode) override;
 
   /**
    * Sets the cursor shape on the window using
    * native window system calls.
    */
-  GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor shape);
-  GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape);
+  GHOST_TSuccess setWindowCursorShape(GHOST_TStandardCursor shape) override;
+  GHOST_TSuccess hasCursorShape(GHOST_TStandardCursor shape) override;
 
   /**
    * Sets the cursor shape on the window using
@@ -300,10 +301,10 @@ class GHOST_WindowIOS : public GHOST_Window {
                                             const uint8_t *mask,
                                             const int size[2],
                                             const int hot_size[2],
-                                            bool canInvertColor);
+                                            bool canInvertColor) override;
 
   /** \copydoc #GHOST_IWindow::getDPIHint */
-  uint16_t getDPIHint();
+  uint16_t getDPIHint() override;
 
   /** The mother SystemCocoa class to send events */
   GHOST_SystemIOS *system_ios_;
@@ -315,6 +316,7 @@ class GHOST_WindowIOS : public GHOST_Window {
 
   bool immediate_draw_;
   bool debug_context_;  // for debug messages during context setup
+  bool is_main_window_;
   bool is_dialog_;
   bool is_active_window_;
   bool request_to_make_active_;
@@ -332,6 +334,10 @@ class GHOST_WindowIOS : public GHOST_Window {
 
   void beginFrame();
   void endFrame();
+  bool hasDeferredSwapBuffers() const
+  {
+    return deferred_swap_buffers_;
+  }
   /* The current approach is to issue the swap/present from the main
    * draw loop *only* for the currently active window. This is because trying
    * to issue presents on anything but the MTKView supplied to drawInMTKView
@@ -343,7 +349,7 @@ class GHOST_WindowIOS : public GHOST_Window {
    * sub windows then we may need to revisit this.
    */
   void flushDeferredSwapBuffers();
-  int deferred_swap_buffers_count;
+  bool deferred_swap_buffers_ = false;
 
   /* Keyboard handling */
   GHOST_TSuccess popupOnscreenKeyboard(const GHOST_KeyboardProperties &keyboard_properties);
@@ -355,7 +361,7 @@ class GHOST_WindowIOS : public GHOST_Window {
   CGSize getLogicalWindowSize();
   /* This is the size of the window post-scaled */
   CGSize getNativeWindowSize();
-  float getWindowScaleFactor();
+  float getWindowScaleFactor() const;
 };
 
 #ifdef WITH_INPUT_IME

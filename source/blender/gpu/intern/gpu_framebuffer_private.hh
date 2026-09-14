@@ -107,13 +107,11 @@ class FrameBuffer {
   virtual void bind(bool enabled_srgb) = 0;
   virtual bool check(char err_out[256]) = 0;
   virtual void clear(GPUFrameBufferBits buffers,
-                     const float clear_col[4],
+                     const double4 clear_color,
                      float clear_depth,
                      uint clear_stencil) = 0;
-  virtual void clear_multi(const float (*clear_col)[4]) = 0;
-  virtual void clear_attachment(GPUAttachmentType type,
-                                eGPUDataFormat data_format,
-                                const void *clear_value) = 0;
+  virtual void clear_multi(Span<double4> clear_cols) = 0;
+  virtual void clear_attachment(GPUAttachmentType type, const double4 clear_value) = 0;
 
   virtual void attachment_set_loadstore_op(GPUAttachmentType type, GPULoadStore ls) = 0;
 
@@ -182,19 +180,6 @@ class FrameBuffer {
     if (!equals_v4v4_int(viewport_[0], viewport)) {
       copy_v4_v4_int(viewport_[0], viewport);
       dirty_state_ = true;
-#if (WITH_APPLE_CROSSPLATFORM)
-      /* IOS_FIXME - selecting 2D Full Canvas window causes a viewport with a -1 origin.
-       Workaround for now. */
-      if (viewport_[0][0] < 0 || viewport_[0][1] < 0) {
-        printf("Invalid viewport detected: %d,%d - %dx%d\n",
-               viewport_[0][0],
-               viewport_[0][1],
-               viewport_[0][2],
-               viewport_[0][3]);
-        viewport_[0][0] = max_ii(viewport_[0][0], 0);
-        viewport_[0][1] = max_ii(viewport_[0][1], 0);
-      }
-#endif
     }
     multi_viewport_ = false;
   }
@@ -251,7 +236,7 @@ class FrameBuffer {
     scissor_set(scissor_rect);
   }
 
-  inline const GPUAttachment &depth_attachment() const
+  const GPUAttachment &depth_attachment() const
   {
     if (attachments_[GPU_FB_DEPTH_ATTACHMENT].tex) {
       return attachments_[GPU_FB_DEPTH_ATTACHMENT];

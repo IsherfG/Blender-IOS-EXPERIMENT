@@ -4,9 +4,9 @@
 
 # Libraries configuration for Apple.
 
-macro(find_package_wrapper)
-  # do nothing, just satisfy the macro
-endmacro()
+function(find_package_wrapper)
+  # do nothing, just satisfy the function
+endfunction()
 
 function(print_found_status
   lib_name
@@ -22,130 +22,22 @@ function(print_found_status
   endif()
 endfunction()
 
-# -------------------------------------------------------------------------------
-# Apple cross-platform device build config
-if(WITH_APPLE_CROSSPLATFORM)
-  # Disable modules with no planned/required support on iOS.
-  set(WITH_USD OFF CACHE BOOL "Disable until we fix issue with release build" FORCE)
-  set(NO_PLATFORM_SUPPORT_MSG "Auto disabled as APPLE_TARGET_DEVICE=ios")
-  set(WITH_VULKAN_BACKEND  OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_OPENGL_BACKEND  OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_SDL OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_INPUT_NDOF OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_XR_OPENXR OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_RUBBERBAND OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_LIBMV OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_LIBMV_SCHUR_SPECIALIZATIONS OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  set(WITH_PYTHON_MODULE OFF CACHE BOOL ${NO_PLATFORM_SUPPORT_MSG} FORCE)
-  # Disable these modules for now
-  set(WITH_PYTHON_INSTALL_ZSTANDARD OFF CACHE BOOL "Disable until iOS build supports SSL" FORCE)
-  # Disable Audaspace as it had dependencies on CoreAudio components which do not exist on iOS
-  # (like AudioToolbox/CoreAudioClock.h)
-  set(WITH_AUDASPACE OFF CACHE BOOL "Auto disabled due to lack of specific CoreAudio support on iOS" FORCE)
-  # Temp: Disabled pending compilation of HgI/Hydra Storm for Metal on iOS.
-  #       (Set DPXR_ENABLE_METAL_SUPPORT=ON in usd.cmake for WITH_APPLE_CROSSPLATFORM platform)
-  set(WITH_HYDRA  OFF CACHE BOOL "Auto disabled due to lack of HgI/Hydra Storm for Metal on iOS" FORCE)
-  set(WITH_CYCLES_OSL OFF CACHE BOOL "Support for build time compilation of OSL Shaders not supported yet on iOS" FORCE)
-
-  # --- Cross compile host tools ----
-
-  # Enable cross-compiled tools (glsl_preprocess, makesdna, makesrna etc.)
-  set(WITH_CROSSCOMPILED_TOOLS ON CACHE BOOL "" FORCE)
-
-  # Fetch Cmake arguments for host build process, ensuring these are consistent with what is
-  # locally disabled, but toggling APPLE_TARGET_DEVICE to macos.
-  get_cmake_property(CACHE_VARS CACHE_VARIABLES)
-  foreach(CACHE_VAR ${CACHE_VARS})
-    get_property(CACHE_VAR_TYPE CACHE ${CACHE_VAR} PROPERTY TYPE)
-    if(CACHE_VAR_TYPE STREQUAL "UNINITIALIZED")
-      set(CACHE_VAR_TYPE)
-    else()
-      if(CACHE_VAR_TYPE STREQUAL "BOOL")
-        # Remove IPAD arg
-        if(NOT CACHE_VAR STREQUAL "APPLE_TARGET_DEVICE" AND NOT CACHE_VAR STREQUAL "WITH_CROSSCOMPILED_TOOLS")
-          set(CMAKE_ARGS "${CMAKE_ARGS} -D${CACHE_VAR}=${${CACHE_VAR}}")
-        else()
-          # Disable iPad for tools compilation
-          set(CMAKE_ARGS "${CMAKE_ARGS} -D${CACHE_VAR}=OFF")
-        endif()
-      endif()
-    endif()
-  endforeach()
-
-  message(STATUS " \n---------------------------\n CROSS COMPILE TOOLS:\n\nDetect CMake configuration for host-tools-build (datatoc, datatoc_icon, makesdna, makesrna, msgformat, shader_tool) \n\nInheriting CMAKE_ARGS:\n${CMAKE_ARGS}\n")
-
-
-  # Run host build process to ensure host tools are up to date. (creating build_darwin_tools folder)
-  # NOTE: ENV command used to isolate environment, as running inside Xcode otherhwise causes Cflags to be inherited.
-  set(CROSSCOMPILE_TOOLDIR "${CMAKE_SOURCE_DIR}/../build_ios/build_darwin_tools/${CMAKE_BUILD_TYPE}")
-  # Override the defines that are used for building Blender (make sure they come after CMAKE_ARGS)
-  set(CMAKE_TOOLS_ARGS "${CMAKE_ARGS} -DWITH_CROSSCOMPILED_TOOLS=OFF -DAPPLE_TARGET_DEVICE=macos -DBLENDER_HOST_TOOLS_ONLY=ON ${CROSSCOMPILE_C_FLAGS} ${CROSSCOMPILE_CXX_FLAGS}")
-  set(CMAKE_TOOLS_ARGS "${CMAKE_TOOLS_ARGS} -DWITH_ALEMBIC=OFF -DWITH_BULLET=OFF -DWITH_CODEC_FFMPEG=OFF -DWITH_CODEC_SNDFILE=OFF -DWITH_CYCLES=OFF -DWITH_CYCLES_DEVICE_METAL=OFF -DWITH_CYCLES_EMBREE=OFF -DWITH_CYCLES_PATH_GUIDING=OFF -DWITH_DRACO=OFF -DWITH_FFTW3=OFF -DWITH_FREESTYLE=OFF -DWITH_GMP=OFF -DWITH_HARU=OFF -DWITH_IK_ITASC=OFF -DWITH_IK_SOLVER=OFF -DWITH_IMAGE_CINEON=OFF -DWITH_IMAGE_OPENEXR=OFF -DWITH_IMAGE_OPENJPEG=OFF -DWITH_IMAGE_WEBP=OFF -DWITH_MANIFOLD=OFF -DWITH_MATERIALX=OFF -DWITH_MOD_FLUID=OFF -DWITH_MOD_OCEANSIM=OFF -DWITH_MOD_REMESH=OFF -DWITH_NANOVDB=OFF -DWITH_OPENAL=OFF -DWITH_OPENCOLORIO=OFF -DWITH_OPENIMAGEDENOISE=OFF -DWITH_OPENSUBDIV=OFF -DWITH_OPENVDB=OFF -DWITH_POTRACE=OFF -DWITH_PUGIXML=OFF -DWITH_PYTHON=OFF -DWITH_QUADRIFLOW=OFF -DWITH_TBB=OFF -DWITH_USD=OFF -DWITH_COMPILER_PRECOMPILED_HEADERS=OFF -DWITH_OPTIMIZED_BUILD_TOOLS=OFF")
-  # IOS_FIXME - Add Cross-Compile defines to the C-Flags
-  # This is a bit of a fudge to make sure that the cross-compiled tools know that we're building
-  # in a cross-compile environment in order that all class and struct definitions match (specificially for RNA).
-  # Ideally we'd build the tools to the same build-type but DEBUG tools would slow the compile process down.
-  # That might still be a better option though. See "debug_size_" in BLI_vector.hh for an example of this.
-  set(CMAKE_TOOLS_ARGS "${CMAKE_TOOLS_ARGS} -DCMAKE_C_FLAGS=\"-DWITH_CROSSCOMPILED_TOOLS -DWITH_APPLE_CROSSPLATFORM\"")
-  set(CMAKE_TOOLS_ARGS "${CMAKE_TOOLS_ARGS} -DCMAKE_CXX_FLAGS=\"-DWITH_CROSSCOMPILED_TOOLS -DWITH_APPLE_CROSSPLATFORM\"")
-
-  get_filename_component(CMAKE_BIN_DIRECTORY "${CMAKE_COMMAND}" DIRECTORY)
-  add_custom_target(blender_cross_tools_compile
-    COMMENT "\n---------------------------\n Building Cross Compile Tools\n"
-    COMMAND env -i HOME="$ENV{HOME}" PATH="${CMAKE_BIN_DIRECTORY}:$ENV{PATH}" BUILD_CMAKE_ARGS=${CMAKE_TOOLS_ARGS} BUILD_DIR=${CROSSCOMPILE_TOOLDIR} make tools
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
-
-  # Configure executable dependencies and paths for cross-compiled tools.
-  # NOTE: Local dependency creation e.g. makesdna should check WITH_CROSSCOMPILED_TOOLS before creating local target.
-  #       We instead run a full build to generate the targets in a host-side build on macOS.
-  add_executable(makesdna IMPORTED GLOBAL)
-  add_executable(makesrna IMPORTED GLOBAL)
-  add_executable(msgfmt IMPORTED GLOBAL)
-  add_executable(datatoc IMPORTED GLOBAL)
-  #add_executable(datatoc_icon IMPORTED GLOBAL)
-  add_executable(shader_tool IMPORTED GLOBAL)
-  add_dependencies(makesdna blender_cross_tools_compile)
-  add_dependencies(makesrna blender_cross_tools_compile)
-  add_dependencies(msgfmt blender_cross_tools_compile)
-  add_dependencies(datatoc blender_cross_tools_compile)
-  #add_dependencies(datatoc_icon blender_cross_tools_compile)
-  add_dependencies(shader_tool blender_cross_tools_compile)
-  message(STATUS "Host tools will be generated in: ${CROSSCOMPILE_TOOLDIR}")
-  set_property(TARGET makesdna PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/makesdna")
-  set_property(TARGET makesrna PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/makesrna")
-  set_property(TARGET msgfmt PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/msgfmt")
-  set_property(TARGET datatoc PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/datatoc")
-  #set_property(TARGET datatoc_icon PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/datatoc_icon")
-  set_property(TARGET shader_tool PROPERTY IMPORTED_LOCATION "${CROSSCOMPILE_TOOLDIR}/bin/shader_tool")
-  message(STATUS "makesdna: ${CROSSCOMPILE_TOOLDIR}/bin/makesdna")
-  message(STATUS "makesrna: ${CROSSCOMPILE_TOOLDIR}/bin/makesrna")
-  message(STATUS "msgfmt: ${CROSSCOMPILE_TOOLDIR}/bin/msgfmt")
-  message(STATUS "datatoc: ${CROSSCOMPILE_TOOLDIR}/bin/datatoc")
-  #message(STATUS "datatoc_icon: ${CROSSCOMPILE_TOOLDIR}/bin/datatoc_icon")
-  message(STATUS "shader_tool: ${CROSSCOMPILE_TOOLDIR}/bin/shader_tool")
-  message(STATUS "\n---------------------------\n")
-else()
-  # Disable cross-compiled tools (shader_tool, makesdna, makesrna etc.) if building on host.
-  set(WITH_CROSSCOMPILED_TOOLS OFF CACHE BOOL "" FORCE)
+if(BLENDER_PLATFORM_CMAKE)
+  include("${BLENDER_PLATFORM_CMAKE}")
+  return()
 endif()
 
 # ------------------------------------------------------------------------
 # Find system provided libraries.
 
 # Find system ZLIB
-if(NOT WITH_APPLE_CROSSPLATFORM)
+set(ZLIB_ROOT /usr)
+find_package(ZLIB REQUIRED)
+find_package(BZip2 REQUIRED)
+list(APPEND ZLIB_LIBRARIES ${BZIP2_LIBRARIES})
 
-  # Ensure we only find the library associated with the macOS SDK.
-  set (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
-
-  set(ZLIB_ROOT /usr)
-  find_package(ZLIB REQUIRED)
-  find_package(BZip2 REQUIRED)
-  list(APPEND ZLIB_LIBRARIES ${BZIP2_LIBRARIES})
-
-  # Reset search mode.
-  set (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
+if(WITH_OPENAL)
+  find_package(OpenAL REQUIRED)
 endif()
 
 if(WITH_JACK)
@@ -161,81 +53,32 @@ if(WITH_JACK)
 endif()
 
 if(NOT DEFINED LIBDIR)
-  if(WITH_APPLE_CROSSPLATFORM)
-    set(LIBDIR ${CMAKE_SOURCE_DIR}/lib/${APPLE_TARGET_DEVICE}_${CMAKE_OSX_ARCHITECTURES})
+  if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "x86_64")
+    set(LIBDIR ${CMAKE_SOURCE_DIR}/lib/macos_x64)
   else()
-    if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "x86_64")
-      set(LIBDIR ${CMAKE_SOURCE_DIR}/lib/macos_x64)
-    else()
-      set(LIBDIR ${CMAKE_SOURCE_DIR}/lib/macos_${CMAKE_OSX_ARCHITECTURES})
-    endif()
-  endif()
-else()
-  if(FIRST_RUN)
-    message(STATUS "Using pre-compiled LIBDIR: ${LIBDIR}")
+    set(LIBDIR ${CMAKE_SOURCE_DIR}/lib/macos_${CMAKE_OSX_ARCHITECTURES})
   endif()
 endif()
-
-if(WITH_APPLE_CROSSPLATFORM)
-  # Check whether python lib exists as prebuilt IOS libs will not have their own repo.
-  if(NOT EXISTS "${LIBDIR}/python/")
-    message(FATAL_ERROR "IOS build requires pre-compiled libs at: '${LIBDIR}'")
-  endif()
-else()
-  if(NOT EXISTS "${LIBDIR}/python/")
-    if(BLENDER_HOST_TOOLS_ONLY)
-      message(WARNING "Missing pre-compiled macOS libs at '${LIBDIR}', falling back to system packages for host tools")
-      set(LIBDIR "${CMAKE_BINARY_DIR}/host_tools_no_libdir")
-    else()
-      message(FATAL_ERROR "Mac OSX requires pre-compiled libs at: '${LIBDIR}'")
-    endif()
-  endif()
+if(NOT EXISTS "${LIBDIR}/.git")
+  message(FATAL_ERROR "Mac OSX requires pre-compiled libs at: '${LIBDIR}'")
 endif()
 if(FIRST_RUN)
   message(STATUS "Using pre-compiled LIBDIR: ${LIBDIR}")
 endif()
 
-message(STATUS "Searching pre-compiled LIBDIR: ${LIBDIR}")
-
 # Avoid searching for headers since this would otherwise override our lib
 # directory as well as PYTHON_ROOT_DIR.
 set(CMAKE_FIND_FRAMEWORK NEVER)
 
-# Optionally use system Python if PYTHON_ROOT_DIR is specified.alisa
-if(NOT WITH_APPLE_CROSSPLATFORM)
-  if(WITH_PYTHON)
-    if(WITH_PYTHON_MODULE AND PYTHON_ROOT_DIR)
-      find_package(PythonLibsUnix REQUIRED)
-    endif()
-  else()
-    # Python executable is needed as part of the build-process,
-    # note that building without Python is quite unusual.
-    find_program(PYTHON_EXECUTABLE "python3")
+# Optionally use system Python if PYTHON_ROOT_DIR is specified.
+if(WITH_PYTHON)
+  if(WITH_PYTHON_MODULE AND PYTHON_ROOT_DIR)
+    find_package(PythonLibsUnix REQUIRED)
   endif()
-
 else()
-  # When building for iOS we use the MacOS version of Python from the macos libs dir
-  set(CROSSCOMPILE_HOST_LIBDIR "${CMAKE_SOURCE_DIR}/lib/macos_arm64")
-  if(NOT PYTHON_VERSION)
-    set(PYTHON_VERSION "3.11")
-    message(STATUS "Using Python ${PYTHON_VERSION} for iOS prebuilt libraries")
-  endif()
-
-  if(PYTHON_VERSION)
-    set(_crosscompile_host_python "${CROSSCOMPILE_HOST_LIBDIR}/python/bin/python${PYTHON_VERSION}")
-  else()
-    set(_crosscompile_host_python "${CROSSCOMPILE_HOST_LIBDIR}/python/bin/python3.11")
-  endif()
-
-  if(EXISTS "${_crosscompile_host_python}")
-    set(PYTHON_EXECUTABLE "${_crosscompile_host_python}")
-  else()
-    find_program(PYTHON_EXECUTABLE "python3" REQUIRED)
-    message(WARNING "Missing bundled host Python at '${_crosscompile_host_python}', falling back to '${PYTHON_EXECUTABLE}'")
-  endif()
-  unset(_crosscompile_host_python)
-
-  message(STATUS "HOST PYTHON EXECUTABLE: ${PYTHON_EXECUTABLE}")
+  # Python executable is needed as part of the build-process,
+  # note that building without Python is quite unusual.
+  find_program(PYTHON_EXECUTABLE "python3")
 endif()
 
 # Prefer lib directory paths
@@ -244,23 +87,6 @@ set(CMAKE_PREFIX_PATH ${LIB_SUBDIRS})
 
 # -------------------------------------------------------------------------
 # Find precompiled libraries, and avoid system or user-installed ones.
-
-if(POLICY CMP0144)
-  cmake_policy(SET CMP0144 NEW) # CMake 3.27+ Always uses upper-case <PACKAGENAME>_ROOT
-endif()
-
-# Find pre-compiled ZLIB for MacOS
-if(NOT WITH_APPLE_CROSSPLATFORM)
-  set(ZLIB_ROOT /usr)
-  find_package(ZLIB REQUIRED)
-  find_package(BZip2 REQUIRED)
-  list(APPEND ZLIB_LIBRARIES ${BZIP2_LIBRARIES})
-else()
-  set(ZLIB_ROOT ${LIBDIR}/zlib)
-  find_package(ZLIB REQUIRED)
-  # Why is this required for iOS? Get link errors otherwise
-  add_bundled_libraries(zlib/lib)
-endif()
 
 if(EXISTS ${LIBDIR})
   include(platform_old_libs_update)
@@ -286,10 +112,6 @@ if(WITH_OPENSUBDIV)
   find_package(OpenSubdiv)
 endif()
 add_bundled_libraries(opensubdiv/lib)
-
-if(WITH_APPLE_CROSSPLATFORM)
-  set(OPENSUBDIV_INCLUDE_DIRS ${OPENSUBDIV_INCLUDE_DIR})
-endif()
 
 if(WITH_CODEC_SNDFILE)
   find_package(SndFile)
@@ -318,19 +140,15 @@ if(WITH_PYTHON)
 endif()
 
 if(WITH_FFTW3)
-  set(FFTW3_ROOT_DIR ${LIBDIR}/fftw3)
   find_package(Fftw3)
 endif()
 
 # FreeType compiled with Brotli compression for woff2.
-if(NOT BLENDER_HOST_TOOLS_ONLY)
-  set(FREETYPE_ROOT_DIR ${LIBDIR}/freetype)
-  find_package(Freetype REQUIRED)
-  set(BROTLI_LIBRARIES
-    ${LIBDIR}/brotli/lib/libbrotlicommon-static.a
-    ${LIBDIR}/brotli/lib/libbrotlidec-static.a
-  )
-endif()
+find_package(Freetype REQUIRED)
+set(BROTLI_LIBRARIES
+  ${LIBDIR}/brotli/lib/libbrotlicommon-static.a
+  ${LIBDIR}/brotli/lib/libbrotlidec-static.a
+)
 
 if(WITH_HARFBUZZ)
   find_package(Harfbuzz)
@@ -341,11 +159,9 @@ if(WITH_FRIBIDI)
 endif()
 
 # Header dependency of required OpenImageIO.
-if(NOT BLENDER_HOST_TOOLS_ONLY)
-  find_package(OpenEXR REQUIRED)
-  add_bundled_libraries(openexr/lib)
-  add_bundled_libraries(imath/lib)
-endif()
+find_package(OpenEXR REQUIRED)
+add_bundled_libraries(openexr/lib)
+add_bundled_libraries(imath/lib)
 
 string(APPEND PLATFORM_CFLAGS " -pipe -funsigned-char -fno-strict-aliasing -ffp-contract=off")
 set(PLATFORM_LINKFLAGS "\
@@ -366,11 +182,11 @@ if(WITH_CODEC_FFMPEG)
   if(EXISTS ${LIBDIR}/ffmpeg/lib/libaom.a)
     list(APPEND FFMPEG_FIND_COMPONENTS aom)
   endif()
-  if(NOT WITH_APPLE_CROSSPLATFORM)
-    # NOTE: Issue with library discovery for iOS.
-    if(EXISTS ${LIBDIR}/ffmpeg/lib/libxvidcore.a)
-      list(APPEND FFMPEG_FIND_COMPONENTS xvidcore)
-    endif()
+  if(EXISTS ${LIBDIR}/ffmpeg/lib/libx265.a)
+    list(APPEND FFMPEG_FIND_COMPONENTS x265)
+  endif()
+  if(EXISTS ${LIBDIR}/ffmpeg/lib/libxvidcore.a)
+    list(APPEND FFMPEG_FIND_COMPONENTS xvidcore)
   endif()
   find_package(FFmpeg)
 endif()
@@ -390,52 +206,16 @@ if(SYSTEMSTUBS_LIBRARY)
   list(APPEND PLATFORM_LINKLIBS SystemStubs)
 endif()
 
-string(APPEND PLATFORM_CFLAGS " -pipe -funsigned-char -fno-strict-aliasing -ffp-contract=off")
-
-if(WITH_APPLE_CROSSPLATFORM)
-  # Link different frameworks for iOS
-  set(PLATFORM_LINKFLAGS
-    "-fexceptions -framework CoreServices -framework Foundation -framework IOKit -framework UIKit -framework AudioToolbox -framework CoreAudio -framework Metal -framework MetalKit -framework QuartzCore -framework ImageIO -framework GameController -framework CoreGraphics"
-  )
-  list(APPEND PLATFORM_LINKLIBS "${LIBDIR}/libb2/lib/libb2.a")
-else()
-  set(PLATFORM_LINKFLAGS
-    "-fexceptions -framework CoreServices -framework Foundation -framework IOKit -framework AppKit -framework Cocoa -framework Carbon -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework Metal -framework QuartzCore"
-  )
-
-  if(WITH_OPENIMAGEDENOISE)
-    if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
-      # OpenImageDenoise uses BNNS from the Accelerate framework.
-      string(APPEND PLATFORM_LINKFLAGS " -framework Accelerate")
-    endif()
-  endif()
-
-  if(WITH_JACK)
-    string(APPEND PLATFORM_LINKFLAGS " -F/Library/Frameworks -weak_framework jackmp")
-  endif()
-
-  if(WITH_SDL)
-    find_package(SDL2)
-    set(SDL_INCLUDE_DIR ${SDL2_INCLUDE_DIRS})
-    set(SDL_LIBRARY ${SDL2_LIBRARIES})
-    string(APPEND PLATFORM_LINKFLAGS " -framework ForceFeedback -framework GameController")
-    if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
-      # The minimum macOS version of the libraries makes it so this is included in SDL on arm64
-      # but not x86_64.
-      string(APPEND PLATFORM_LINKFLAGS " -framework CoreHaptics")
-    endif()
+if(WITH_OPENIMAGEDENOISE)
+  if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
+    # OpenImageDenoise uses BNNS from the Accelerate framework.
+    string(APPEND PLATFORM_LINKFLAGS " -framework Accelerate")
   endif()
 endif()
 
-if(WITH_OPENCOLLADA)
-  find_package(OpenCOLLADA)
-  find_library(PCRE_LIBRARIES NAMES pcre HINTS ${LIBDIR}/opencollada/lib)
-  find_library(XML2_LIBRARIES NAMES xml2 HINTS ${LIBDIR}/opencollada/lib)
-  print_found_status("PCRE" "${PCRE_LIBRARIES}")
-  print_found_status("XML2" "${XML2_LIBRARIES}")
+if(WITH_JACK)
+  string(APPEND PLATFORM_LINKFLAGS " -F/Library/Frameworks -weak_framework jackmp")
 endif()
-
-list(APPEND PLATFORM_LINKLIBS c++)
 
 if(WITH_VULKAN_BACKEND)
   find_package(ShaderC REQUIRED)
@@ -443,39 +223,20 @@ if(WITH_VULKAN_BACKEND)
 endif()
 
 if(WITH_SDL)
-  find_package(SDL2)
-  set(SDL_INCLUDE_DIR ${SDL2_INCLUDE_DIRS})
-  set(SDL_LIBRARY ${SDL2_LIBRARIES})
-  string(APPEND PLATFORM_LINKFLAGS " -framework ForceFeedback -framework GameController")
-  if("${CMAKE_OSX_ARCHITECTURES}" STREQUAL "arm64")
-    # The minimum macOS version of the libraries makes it so this is included in SDL on arm64
-    # but not x86_64.
-    string(APPEND PLATFORM_LINKFLAGS " -framework CoreHaptics")
-  endif()
+  find_package(SDL3 REQUIRED CONFIG)
 endif()
-
-list(APPEND PLATFORM_LINKLIBS c++)
+add_bundled_libraries(sdl/lib)
 
 set(EPOXY_ROOT_DIR ${LIBDIR}/epoxy)
-if(NOT WITH_APPLE_CROSSPLATFORM AND NOT BLENDER_HOST_TOOLS_ONLY)
-  find_package(Epoxy REQUIRED)
-endif()
+find_package(Epoxy REQUIRED)
 
-if(NOT BLENDER_HOST_TOOLS_ONLY)
-  set(PNG_ROOT ${LIBDIR}/png)
-  find_package(PNG REQUIRED)
+set(PNG_ROOT ${LIBDIR}/png)
+find_package(PNG REQUIRED)
 
-  set(JPEG_ROOT ${LIBDIR}/jpeg)
-  find_package(JPEG REQUIRED)
-
-  set(TIFF_ROOT ${LIBDIR}/tiff)
-  find_package(TIFF REQUIRED)
-endif()
+set(JPEG_ROOT ${LIBDIR}/jpeg)
+find_package(JPEG REQUIRED)
 
 set(fmt_ROOT ${LIBDIR}/fmt)
-if(WITH_APPLE_CROSSPLATFORM)
-  set(fmt_DIR ${LIBDIR}/fmt/lib/cmake/fmt)
-endif()
 find_package(fmt REQUIRED)
 
 if(WITH_IMAGE_WEBP)
@@ -491,24 +252,15 @@ if(WITH_PUGIXML)
   find_package(PugiXML REQUIRED)
 endif()
 
-if(NOT BLENDER_HOST_TOOLS_ONLY)
-  find_package(OpenImageIO REQUIRED)
-  add_bundled_libraries(openimageio/lib)
-endif()
+find_package(OpenImageIO REQUIRED)
+add_bundled_libraries(openimageio/lib)
 
-if(WITH_OPENCOLORIO)
-  find_package(OpenColorIO 2.0.0 REQUIRED)
-endif()
+find_package(OpenColorIO 2.0.0 REQUIRED CONFIG)
 add_bundled_libraries(opencolorio/lib)
 
 if(WITH_OPENVDB)
   find_package(OpenVDB)
-  if(WITH_APPLE_CROSSPLATFORM)
-    # Use static library for iOS.
-    find_library(BLOSC_LIBRARIES NAMES libblosc.a HINTS ${LIBDIR}/openvdb/lib)
-  else()
-    find_library(BLOSC_LIBRARIES NAMES blosc HINTS ${LIBDIR}/openvdb/lib)
-  endif()
+  find_library(BLOSC_LIBRARIES NAMES blosc HINTS ${LIBDIR}/openvdb/lib)
   if(BLOSC_LIBRARIES)
     list(APPEND OPENVDB_LIBRARIES ${BLOSC_LIBRARIES})
   else()
@@ -525,7 +277,7 @@ if(WITH_NANOVDB)
 endif()
 
 test_neon_support()
-if(SUPPORTS_NEON_BUILD AND NOT BLENDER_HOST_TOOLS_ONLY)
+if(SUPPORTS_NEON_BUILD)
   find_package(sse2neon REQUIRED)
 endif()
 
@@ -551,7 +303,7 @@ add_bundled_libraries(osl/lib)
 add_bundled_libraries(openjph/lib)
 
 if(WITH_CYCLES AND WITH_CYCLES_EMBREE)
-  find_package(Embree 3.8.0 REQUIRED)
+  find_package(Embree 4.0.0 REQUIRED)
 endif()
 add_bundled_libraries(embree/lib)
 
@@ -561,38 +313,23 @@ if(WITH_OPENIMAGEDENOISE)
 endif()
 
 if(WITH_TBB)
-  find_package(TBB REQUIRED)
+  find_package(TBB 2021.13.0 REQUIRED)
   if(TBB_FOUND)
     get_target_property(TBB_LIBRARIES TBB::tbb LOCATION)
     get_target_property(TBB_INCLUDE_DIRS TBB::tbb INTERFACE_INCLUDE_DIRECTORIES)
   endif()
   set_and_warn_library_found("TBB" TBB_FOUND WITH_TBB)
- endif()
+endif()
 add_bundled_libraries(tbb/lib)
 
 if(WITH_POTRACE)
   find_package(Potrace REQUIRED)
 endif()
 
-# CMake FindOpenMP doesn't know about AppleClang before 3.12, so provide custom flags.
-if(WITH_OPENMP)
-  if(CMAKE_C_COMPILER_ID MATCHES "Clang")
-    # Use OpenMP from our precompiled libraries.
-    message(STATUS "Using ${LIBDIR}/openmp for OpenMP")
-    set(OPENMP_CUSTOM ON)
-    set(OPENMP_FOUND ON)
-    set(OpenMP_C_FLAGS "-Xclang -fopenmp -I'${LIBDIR}/openmp/include'")
-    set(OpenMP_CXX_FLAGS "-Xclang -fopenmp -I'${LIBDIR}/openmp/include'")
-    set(OpenMP_LIBRARY_DIR "${LIBDIR}/openmp/lib/")
-    set(OpenMP_LINKER_FLAGS "-L'${OpenMP_LIBRARY_DIR}' -lomp")
-    set(OpenMP_LIBRARY "${OpenMP_LIBRARY_DIR}/libomp.dylib")
-  endif()
-endif()
-add_bundled_libraries(openmp/lib)
-
 if(WITH_XR_OPENXR)
   find_package(XR_OpenXR_SDK REQUIRED)
 endif()
+add_bundled_libraries(xr_openxr_sdk/lib)
 
 if(WITH_GMP)
   find_package(GMP REQUIRED)
@@ -604,11 +341,6 @@ endif()
 
 if(WITH_MANIFOLD)
   find_package(manifold REQUIRED)
-endif()
-
-if(WITH_OPENAL)
-  set(OpenAL_ROOT ${LIBDIR}/openal)
-  find_package(OpenAL REQUIRED)
 endif()
 
 if(WITH_RUBBERBAND)
@@ -627,19 +359,30 @@ if(WITH_CYCLES AND WITH_CYCLES_PATH_GUIDING)
   endif()
 endif()
 
-if(BLENDER_HOST_TOOLS_ONLY)
-  find_package(Eigen3 REQUIRED)
-else()
-  find_package(Eigen3 REQUIRED CONFIG)
-endif()
+find_package(Eigen3 REQUIRED CONFIG)
 
-if (WITH_LIBMV)
+if(WITH_LIBMV)
   find_package(Ceres REQUIRED CONFIG)
 endif()
 add_bundled_libraries(ceres/lib)
 
 set(ZSTD_ROOT_DIR ${LIBDIR}/zstd)
 find_package(Zstd REQUIRED)
+
+if(WITH_DRACO)
+  find_package(draco REQUIRED CONFIG)
+endif()
+add_bundled_libraries(draco/lib)
+
+if(WITH_MESHOPTIMIZER)
+  find_package(meshoptimizer REQUIRED CONFIG)
+endif()
+add_bundled_libraries(meshoptimizer/lib)
+
+if(WITH_TRACY)
+  set(Tracy_ROOT_DIR ${LIBDIR}/tracy)
+  find_package(Tracy REQUIRED CONFIG)
+endif()
 
 if(EXISTS ${LIBDIR})
   without_system_libs_end()
@@ -673,9 +416,7 @@ string(APPEND CMAKE_CXX_FLAGS " -ftemplate-depth=1024")
 # Avoid conflicts with Luxrender, and other plug-ins that may use the same
 # libraries as Blender with a different version or build options.
 set(PLATFORM_SYMBOLS_MAP ${CMAKE_SOURCE_DIR}/source/creator/symbols_apple.map)
-string(APPEND PLATFORM_LINKFLAGS
-  " -Wl,-unexported_symbols_list,'${PLATFORM_SYMBOLS_MAP}'"
-)
+set(PLATFORM_LINKFLAGS_SYMBOL_HIDING "-Wl,-unexported_symbols_list,'${PLATFORM_SYMBOLS_MAP}'")
 
 if(${XCODE_VERSION} VERSION_EQUAL 15.0)
   # V4.5 specific workaround: Enforce the legacy Xcode linker to avoid incorrect
@@ -699,6 +440,13 @@ elseif(${XCODE_VERSION} VERSION_GREATER_EQUAL 15.0)
     # it is corrected in CMake 3.29:
     #    https://gitlab.kitware.com/cmake/cmake/-/issues/25297
     string(APPEND PLATFORM_LINKFLAGS " -Xlinker -no_warn_duplicate_libraries")
+
+    # Silence: ld: warning: reducing alignment of section __DATA,__common from 0x8000
+    #          to 0x4000 because it exceeds segment maximum alignment
+    # The flag to silence this warning is only available on Xcode 26.4 and above.
+    if(${XCODE_VERSION} VERSION_GREATER_EQUAL 26.4)
+      string(APPEND PLATFORM_LINKFLAGS " -Xlinker -no_warn_reduced_section_align")
+    endif()
   endif()
 endif()
 
@@ -741,8 +489,8 @@ if(PLATFORM_BUNDLED_LIBRARIES)
   # For the installed Python module and installed Blender executable, we set the
   # rpath to the location where install step will copy the shared libraries.
   set(CMAKE_SKIP_INSTALL_RPATH FALSE)
-  if(WITH_PYTHON_MODULE OR WITH_APPLE_CROSSPLATFORM)
-    list(APPEND CMAKE_INSTALL_RPATH "@loader_path/Assets/lib")
+  if(WITH_PYTHON_MODULE)
+    list(APPEND CMAKE_INSTALL_RPATH "@loader_path/lib")
   else()
     list(APPEND CMAKE_INSTALL_RPATH "@loader_path/../Resources/lib")
   endif()
@@ -757,27 +505,10 @@ if(PLATFORM_BUNDLED_LIBRARIES)
   # Environment variables to run precompiled executables that needed libraries.
   list(JOIN PLATFORM_BUNDLED_LIBRARY_DIRS ":" _library_paths)
   # Intentionally double "$$" which expands into "$" when instantiated.
-  set(PLATFORM_ENV_BUILD "DYLD_LIBRARY_PATH=\"${_library_paths};$$DYLD_LIBRARY_PATH\"")
-  if(WITH_APPLE_CROSSPLATFORM)
-    set(PLATFORM_ENV_INSTALL "DYLD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX_WITH_CONFIG}/Blender.app/Assets/lib/;$DYLD_LIBRARY_PATH")
-  else()
-    set(PLATFORM_ENV_INSTALL "DYLD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX_WITH_CONFIG}/Blender.app/Contents/Resources/lib/;$$DYLD_LIBRARY_PATH")
-  endif()
+  set(PLATFORM_ENV_BUILD "DYLD_LIBRARY_PATH=\"${_library_paths}:$$DYLD_LIBRARY_PATH\"")
+  set(PLATFORM_ENV_INSTALL "DYLD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX_WITH_CONFIG}/Blender.app/Contents/Resources/lib/:$$DYLD_LIBRARY_PATH")
   unset(_library_paths)
 endif()
 
 # Same as `CFBundleIdentifier` in Info.plist.
-# IOS_FIXME: Change 'test' back to 'blenderfoundation' before release
-# set(CMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.blenderfoundation.blender")
-
-if(WITH_APPLE_CROSSPLATFORM)
-  if(APPLE_TARGET_IOS)
-    set(CMAKE_XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2")
-    set(CMAKE_XCODE_ATTRIBUTE_SUPPORTS_MACCATALYST NO)
-    set(CMAKE_XCODE_ATTRIBUTE_SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD NO)
-
-    # Entitlements file reference
-    # `release/ios` is hardcoded since we want to use the same entitlements for both iOS-Simulator and normal iOS builds.
-    set(CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS "${CMAKE_SOURCE_DIR}/release/ios/entitlements.plist")
-  endif()
-endif()
+set(CMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "org.blenderfoundation.blender")

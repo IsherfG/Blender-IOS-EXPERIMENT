@@ -22,6 +22,17 @@ using namespace Eigen;
 
 SolverStatus RunCNF(const std::string &fin_name, int n_variable, int timeout,
                     const std::vector<std::vector<int>> &sat_clause, std::vector<int> &value) {
+#if defined(QUADRIFLOW_SUBPROCESS_SUPPORT) && !QUADRIFLOW_SUBPROCESS_SUPPORT
+    /* The aggressive SAT pass invokes external `minisat` and `timeout`
+     * executables. iOS cannot spawn processes, and Blender's embedded
+     * QuadriFlow API leaves this optional pass disabled. */
+    (void)fin_name;
+    (void)n_variable;
+    (void)timeout;
+    (void)sat_clause;
+    (void)value;
+    return SolverStatus::Unsat;
+#else
     int n_sat_variable = 3 * n_variable;
     auto fout_name = fin_name + ".result.txt";
 
@@ -35,16 +46,10 @@ SolverStatus RunCNF(const std::string &fin_name, int n_variable, int timeout,
 
     char cmd[100];
     snprintf(cmd, 99, "rm %s > /dev/null 2>&1", fout_name.c_str());
-#ifndef WITH_APPLE_CROSSPLATFORM
     system(cmd);
-#endif
     snprintf(cmd, 99, "timeout %d minisat %s %s > /dev/null 2>&1", timeout, fin_name.c_str(),
              fout_name.c_str());
-#ifndef WITH_APPLE_CROSSPLATFORM
     int exit_code = system(cmd);
-#else
-    int exit_code = 0;
-#endif
 
     FILE *fin = fopen(fout_name.c_str(), "r");
     char buf[16] = {0};
@@ -79,6 +84,7 @@ SolverStatus RunCNF(const std::string &fin_name, int n_variable, int timeout,
     fclose(fin);
 
     return SolverStatus::Sat;
+#endif
 }
 
 SolverStatus SolveSatProblem(int n_variable, std::vector<int> &value,

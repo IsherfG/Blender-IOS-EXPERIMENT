@@ -23,6 +23,7 @@ These can be unquoted eventually.
 
 __all__ = (
     "main",
+    "floating_checkout_update",
 )
 
 
@@ -75,7 +76,6 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--use-tests", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-submodules", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--use-linux-libraries", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--use-ios-libraries", action="store_true", help=argparse.SUPPRESS)
 
     return parser.parse_args()
 
@@ -204,30 +204,6 @@ def prune_stale_files(args: argparse.Namespace) -> None:
         print("Checkout looks pristine")
 
 
-def initialize_precompiled_libraries_for_platform(args: argparse.Namespace, platform: str, arch: str) -> str:
-    """
-    Configure submodule for precompiled libraries of the given platform and arcitecture
-    """
-
-    submodule_dir = f"lib/{platform}_{arch}"
-
-    submodule_directories = get_submodule_directories(args)
-
-    if platform == "macos" and arch == "x64":
-        return ("WARNING: macOS x64/Intel support was dropped in Blender 5.0.\n"
-                "         As such, pre-compiled dependencies are no longer provided.\n"
-                "         You may build the dependencies yourself, or downgrade to Blender 4.5.\n"
-                "         For more details, please see: https://devtalk.blender.org/t/38835")
-
-    if Path(submodule_dir) not in submodule_directories:
-        return "Skipping libraries update: no configured submodule\n"
-
-    print(f"* Enabling precompiled libraries at {submodule_dir}")
-    make_utils.git_enable_submodule(args.git_command, Path(submodule_dir))
-
-    return ""
-
-
 def initialize_precompiled_libraries(args: argparse.Namespace) -> str:
     """
     Configure submodule for precompiled libraries
@@ -248,12 +224,23 @@ def initialize_precompiled_libraries(args: argparse.Namespace) -> str:
     print(f"Detected architecture : {arch}")
     print()
 
-    msg = initialize_precompiled_libraries_for_platform(args, platform, arch)
+    submodule_dir = f"lib/{platform}_{arch}"
 
-    if platform == "macos" and args.use_ios_libraries:
-        msg += initialize_precompiled_libraries_for_platform(args, "ios", arch)
+    submodule_directories = get_submodule_directories(args)
 
-    return msg
+    if platform == "macos" and arch == "x64":
+        return ("WARNING: macOS x64/Intel support was dropped in Blender 5.0.\n"
+                "         As such, pre-compiled dependencies are no longer provided.\n"
+                "         You may build the dependencies yourself, or downgrade to Blender 4.5.\n"
+                "         For more details, please see: https://devtalk.blender.org/t/38835")
+
+    if Path(submodule_dir) not in submodule_directories:
+        return "Skipping libraries update: no configured submodule\n"
+
+    print(f"* Enabling precompiled libraries at {submodule_dir}")
+    make_utils.git_enable_submodule(args.git_command, Path(submodule_dir))
+
+    return ""
 
 
 def git_update_skip(args: argparse.Namespace, check_remote_exists: bool = True) -> str:

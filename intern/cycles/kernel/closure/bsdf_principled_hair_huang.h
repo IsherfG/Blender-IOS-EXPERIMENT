@@ -23,10 +23,10 @@ struct HuangHairExtra {
   float R, TT, TRT;
 
   /* Local coordinate system. X is stored as `bsdf->N`. */
-  packed_float3 Y, Z;
+  float3 Y, Z;
 
   /* Incident direction in local coordinate system. */
-  packed_float3 wi;
+  float3 wi;
 
   /* Projected radius from the view direction. */
   float radius;
@@ -305,7 +305,7 @@ ccl_device int bsdf_hair_huang_setup(ccl_private ShaderData *sd,
     return 0;
   }
 
-  return SD_BSDF | SD_BSDF_HAS_EVAL | SD_BSDF_NEEDS_LCG | SD_BSDF_HAS_TRANSMISSION;
+  return SD_BSDF | SD_BSDF_HAS_EVAL | SD_BSDF_HAS_TRANSMISSION;
 }
 
 #endif /* __HAIR__ */

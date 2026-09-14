@@ -1,0 +1,20 @@
+appId: org.blenderfoundation.blender.ios
+name: Blender iOS documentation virtual cursor
+---
+- swipe:
+    start: 42%,52%
+    end: 72%,52%
+    duration: 1200
+- swipe:
+    start: 72%,52%
+    end: 94%,52%
+    duration: 900
+- swipe:
+    start: 65%,58%
+    end: 15%,30%
+    duration: 1300
+- tapOn:
+    point: 50%,50%
+- waitForAnimationToEnd:
+    timeout: 2000
+- takeScreenshot: docs-virtual-cursor

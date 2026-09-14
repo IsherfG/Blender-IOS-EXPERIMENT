@@ -14,6 +14,7 @@ set(LIB
   PRIVATE bf::bmesh
   PRIVATE bf::depsgraph
   PRIVATE bf::dna
+  PRIVATE bf::functions
   PRIVATE bf::gpu
   PRIVATE bf::imbuf
   PRIVATE bf::imbuf::movie
@@ -22,7 +23,7 @@ set(LIB
   PRIVATE bf::render
   PRIVATE bf::sequencer
   PRIVATE bf::windowmanager
-  PRIVATE bf::dependencies::optional::opencolorio
+  PRIVATE bf::dependencies::opencolorio
 )
 
 if(HAVE_FEENABLEEXCEPT)
@@ -46,14 +47,8 @@ if(WIN32)
   list(APPEND INC ../../intern/utfconv)
 endif()
 
-if(APPLE)
-  if(WITH_APPLE_CROSSPLATFORM)
-    # iOS App template.
-    set(OSX_APP_SOURCEDIR ${CMAKE_SOURCE_DIR}/release/ios/Blender.app)
-  else()
-    # MacOS App template.
-    set(OSX_APP_SOURCEDIR ${CMAKE_SOURCE_DIR}/release/darwin/Blender.app)
-  endif()
+if(BLENDER_PLATFORM_CREATOR_CMAKE)
+  include("${BLENDER_PLATFORM_CREATOR_CMAKE}")
 endif()
 
 if(WITH_LIBMV)
@@ -90,11 +85,6 @@ if(WITH_TBB)
     # For `pragma` that links `tbbmalloc_proxy.lib`.
     link_directories(${LIBDIR}/tbb/lib)
   endif()
-endif()
-
-if(WIN32)
-  # Windows.h will define min/max macros that will collide with the STL versions.
-  add_definitions(-DNOMINMAX)
 endif()
 
 if(WITH_USD)
@@ -303,7 +293,7 @@ if(WITH_BUILDINFO)
   add_dependencies(buildinfoobj buildinfo)
 endif()
 
-add_cc_flags_custom_test(blender)
+add_c_and_cxx_flags_custom_test(blender)
 
 # message(STATUS "Configuring blender")
 if(WITH_PYTHON_MODULE)
@@ -349,35 +339,12 @@ if(WITH_PYTHON_MODULE)
   endif()
 
 else()
-
-  if(WITH_APPLE_CROSSPLATFORM)
-    # Add Storyboard - required for main window interface.
-    set(storyboards ${OSX_APP_SOURCEDIR}/Main.storyboard)
-
-    add_executable(blender ${EXETYPE} ${SRC} ${storyboards})
-
-    # Additional libraries required by static python extensions compiled directly in source.
-    # Otherwise will see Python linking issues during linking in Xcode about missing SSL etc.
-    # TODO: This doesn't feel like the right place for this,
-    #       libypthon should be built without needing sub dependencies during linking.
-    set(IOS_PYTHON_STATIC_LIBS
-      ${LIBDIR}/ssl/lib/libssl.a
-      ${LIBDIR}/ssl/lib/libcrypto.a
-      ${LIBDIR}/ffi/lib/libffi.a
-      ${LIBDIR}/sqlite/lib/libsqlite3.a
-      ${LIBDIR}/lzma/lib/liblzma.a
-      ${LIBDIR}/bzip2/lib/libbz2.a
-    )
-    list(APPEND LIB ${IOS_PYTHON_STATIC_LIBS})
-    
-  else()
-    add_executable(blender ${EXETYPE} ${SRC})
-    if(WITH_CPU_CHECK)
-      # blender_cpu_check *NEEDS* to be linked first, there can be no exceptions
-      # to this, this is to ensure this will be the first code to run once the
-      # blender binary has been loaded by the OS.
-      target_link_libraries(blender PRIVATE blender_cpu_check)
-    endif()
+  add_executable(blender ${EXETYPE} ${SRC})
+  if(WITH_CPU_CHECK)
+    # blender_cpu_check *NEEDS* to be linked first, there can be no exceptions
+    # to this, this is to ensure this will be the first code to run once the
+    # blender binary has been loaded by the OS.
+    target_link_libraries(blender PRIVATE blender_cpu_check)
   endif()
   if(WIN32)
     add_executable(blender-launcher WIN32
@@ -435,6 +402,11 @@ if(UNIX AND NOT APPLE)
     else()
       set(TARGETDIR_VER "share/blender/${BLENDER_VERSION}")
       set(TARGETDIR_TEXT "share/doc/blender")
+      if(CMAKE_INSTALL_LIBDIR)
+        set(TARGETDIR_VER_LIBS "${CMAKE_INSTALL_LIBDIR}/blender/${BLENDER_VERSION}")
+      else()
+        set(TARGETDIR_VER_LIBS "lib/blender/${BLENDER_VERSION}")
+      endif()
     endif()
   endif()
   set(TARGETDIR_SITE_PACKAGES "${TARGETDIR_VER}/python/lib/python${PYTHON_VERSION}/site-packages")
@@ -466,27 +438,26 @@ elseif(APPLE)
       set(TARGETDIR_LIB ${PYTHON_SITE_PACKAGES}/bpy/lib)
     endif()
   else()
-    if(WITH_APPLE_CROSSPLATFORM)
-      # Resources folder needs flattening.
-      set(TARGETDIR_VER "./Blender.app/Assets/${BLENDER_VERSION}")
-      set(TARGETDIR_LIB "./Blender.app/Assets/lib")
-      set(TARGETDIR_TEXT "./Blender.app/Assets/text")
+    if(COMMAND blender_platform_set_resource_directories)
+      blender_platform_set_resource_directories()
     else()
-      set(TARGETDIR_VER "./Blender.app/Contents/Resources/${BLENDER_VERSION}")
-      set(TARGETDIR_LIB "./Blender.app/Contents/Resources/lib")
-      set(TARGETDIR_TEXT "./Blender.app/Contents/Resources/text")
+      set(TARGETDIR_VER "Blender.app/Contents/Resources/${BLENDER_VERSION}")
+      set(TARGETDIR_LIB "Blender.app/Contents/Resources/lib")
+      set(TARGETDIR_TEXT "Blender.app/Contents/Resources/text")
     endif()
   endif()
   set(TARGETDIR_SITE_PACKAGES "${TARGETDIR_VER}/python/lib/python${PYTHON_VERSION}/site-packages")
   # Skip re-linking on CPACK / install.
   set_target_properties(blender PROPERTIES BUILD_WITH_INSTALL_RPATH true)
-  if (NOT WITH_APPLE_CROSSPLATFORM)
-    if(WITH_BLENDER_THUMBNAILER)
-      set_target_properties(blender-thumbnailer PROPERTIES BUILD_WITH_INSTALL_RPATH true)
-    endif()
+  if(WITH_BLENDER_THUMBNAILER)
+    set_target_properties(blender-thumbnailer PROPERTIES BUILD_WITH_INSTALL_RPATH true)
   endif()
 endif()
 
+# In most cases this matches `TARGETDIR_VER`, set here unless explicitly defined.
+if(NOT DEFINED TARGETDIR_VER_LIBS)
+  set(TARGETDIR_VER_LIBS "${TARGETDIR_VER}")
+endif()
 
 # -----------------------------------------------------------------------------
 # Install Targets (Generic, All Platforms)
@@ -534,15 +505,34 @@ if(WITH_PYTHON)
   endif()
   unset(FREESTYLE_EXCLUDE_CONDITIONAL)
 
-  if(WITH_DRACO)
-    # Building static draco lib so do not need to install on iOS
-    if(NOT WITH_APPLE_CROSSPLATFORM)
-      install(
-        PROGRAMS $<TARGET_FILE:extern_draco>
-        DESTINATION ${TARGETDIR_VER}/scripts/addons_core/io_scene_gltf2
-      )
-    endif()
+  # The glTF add-on's draco & meshopt bridge libraries, loaded at run-time by `io_scene_gltf2`.
+  # Portable Linux builds place them in `lib` beside their bundled dependencies (found via each
+  # target's `$ORIGIN` RPATH); otherwise beside the add-on where `library.py` looks for them.
+  if(UNIX AND NOT APPLE AND WITH_INSTALL_PORTABLE)
+    set(GLTF_BRIDGE_INSTALL_DIR "${TARGETDIR_LIB}")
+  else()
+    set(GLTF_BRIDGE_INSTALL_DIR "${TARGETDIR_VER_LIBS}/scripts/addons_core/io_scene_gltf2")
   endif()
+
+  if(WITH_DRACO)
+    install(
+      PROGRAMS $<TARGET_FILE:bf_intern_draco_bridge>
+      DESTINATION ${GLTF_BRIDGE_INSTALL_DIR}
+    )
+  endif()
+
+  if(WITH_MESHOPTIMIZER)
+    install(
+      PROGRAMS $<TARGET_FILE:bf_intern_meshopt_bridge>
+      DESTINATION ${GLTF_BRIDGE_INSTALL_DIR}
+    )
+  endif()
+
+  if(COMMAND blender_platform_install_gltf_bridges)
+    blender_platform_install_gltf_bridges("${GLTF_BRIDGE_INSTALL_DIR}")
+  endif()
+
+  unset(GLTF_BRIDGE_INSTALL_DIR)
 
 endif()
 
@@ -595,12 +585,10 @@ if(WITH_INTERNATIONAL)
 endif()
 
 # Color management.
-if(WITH_OPENCOLORIO)
-  install(
-    DIRECTORY ${CMAKE_SOURCE_DIR}/release/datafiles/colormanagement
-    DESTINATION ${TARGETDIR_VER}/datafiles
-  )
-endif()
+install(
+  DIRECTORY ${CMAKE_SOURCE_DIR}/release/datafiles/colormanagement
+  DESTINATION ${TARGETDIR_VER}/datafiles
+)
 if(WIN32)
   if(EXISTS ${LIBDIR}/osl/lib/python${PYTHON_VERSION}/site-packages/oslquery) # 4.4+
     install(
@@ -741,7 +729,8 @@ endif()
 unset(_install_cmd)
 
 # macro to help install files without dragging in unnecessary data.
-macro(install_dir from to)
+# Install a directory, excluding common junk files.
+function(install_dir from to)
   install(
     DIRECTORY ${from}
     DESTINATION ${to}
@@ -768,7 +757,7 @@ macro(install_dir from to)
     PATTERN "turtle.py" EXCLUDE                 # ./turtle.py
     PATTERN "wininst*.exe" EXCLUDE              # from distutils, avoid malware false positive
   )
-endmacro()
+endfunction()
 
 # -----------------------------------------------------------------------------
 # Install Targets (Platform Specific)
@@ -829,34 +818,11 @@ if(UNIX AND NOT APPLE)
     # NOTE: there is a bug in CMake 3.25.1 where `LIBDIR` is reported as undefined.
     if(NOT DEFINED LIBDIR)
       # Pass.
-    elseif(EXISTS ${LIBDIR}/mesa)
-      install(
-        # Trailing slash is needed to install contents instead of directory itself.
-        DIRECTORY ${LIBDIR}/mesa/lib/
-        DESTINATION "./lib/mesa"
-      )
-
+    elseif(EXISTS ${LIBDIR})
       install(
         PROGRAMS
         ${CMAKE_SOURCE_DIR}/release/bin/blender-launcher
-        ${CMAKE_SOURCE_DIR}/release/bin/blender-softwaregl
         DESTINATION "."
-      )
-
-      # Remove from old location, so existing builds don't start with software
-      # OpenGL now that the `./lib/` directory is used for other libraries.
-      install(
-        CODE "\
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGL.so)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGL.so.1)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGL.so.1.5.0)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGLU.so)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGLU.so.1)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libGLU.so.1.3.1)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libglapi.so)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libglapi.so.0)\n
-file(REMOVE ${CMAKE_BINARY_DIR}/bin/lib/libglapi.so.0.0.0)\n
-"
       )
     endif()
   else()
@@ -1537,7 +1503,19 @@ elseif(WIN32)
       ALL
     )
   endif()
-  if(EXISTS "${LIBDIR}/ffmpeg/lib/avcodec-61.dll")
+  if(EXISTS "${LIBDIR}/ffmpeg/lib/avcodec-62.dll")
+    windows_install_shared_manifest(
+      FILES
+        ${LIBDIR}/ffmpeg/lib/avcodec-62.dll
+        ${LIBDIR}/ffmpeg/lib/avformat-62.dll
+        ${LIBDIR}/ffmpeg/lib/avdevice-62.dll
+        ${LIBDIR}/ffmpeg/lib/avutil-60.dll
+        ${LIBDIR}/ffmpeg/lib/swscale-9.dll
+        ${LIBDIR}/ffmpeg/lib/swresample-6.dll
+        ${LIBDIR}/ffmpeg/lib/avfilter-11.dll
+      ALL
+    )
+  elseif(EXISTS "${LIBDIR}/ffmpeg/lib/avcodec-61.dll")
     windows_install_shared_manifest(
       FILES
         ${LIBDIR}/ffmpeg/lib/avcodec-61.dll
@@ -1628,13 +1606,31 @@ elseif(WIN32)
   )
 
   windows_install_shared_manifest(
+    FILES ${LIBDIR}/meshoptimizer/bin/meshoptimizer.dll
+    RELEASE
+  )
+  windows_install_shared_manifest(
+    FILES ${LIBDIR}/meshoptimizer/bin/meshoptimizer_d.dll
+    DEBUG
+  )
+
+  windows_install_shared_manifest(
+    FILES ${LIBDIR}/draco/bin/draco.dll
+    RELEASE
+  )
+  windows_install_shared_manifest(
+    FILES ${LIBDIR}/draco/bin/draco_d.dll
+    DEBUG
+  )
+
+  windows_install_shared_manifest(
     FILES
       ${LIBDIR}/openal/lib/OpenAL32.dll
     ALL
   )
 
   windows_install_shared_manifest(
-    FILES ${LIBDIR}/sdl/lib/SDL2.dll
+    FILES ${LIBDIR}/sdl/bin/SDL3.dll
     ALL
   )
 
@@ -1716,6 +1712,10 @@ elseif(APPLE)
     set_target_properties(blender PROPERTIES OUTPUT_NAME Blender)
   endif()
 
+  if(NOT DEFINED OSX_APP_SOURCEDIR)
+    set(OSX_APP_SOURCEDIR ${CMAKE_SOURCE_DIR}/release/darwin/Blender.app)
+  endif()
+
   # Setup `Info.plist`.
   execute_process(
     COMMAND date "+%Y-%m-%d"
@@ -1723,48 +1723,31 @@ elseif(APPLE)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
 
-  if(WITH_APPLE_CROSSPLATFORM)
-    MESSAGE(STATUS "-- CONFIGURING IOS PLIST -- ")
-    set_target_properties(blender PROPERTIES
-      MACOSX_BUNDLE_INFO_PLIST ${OSX_APP_SOURCEDIR}/Info.plist
-      MACOSX_BUNDLE_SHORT_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH}"
-      MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH} ${BLENDER_DATE}"
-    )
-
-    set(allresources ${storyboards})
-    set_target_properties(blender PROPERTIES RESOURCE "${allresources}")
-
-    # Xcode Archiving support (Testflight, App Store, etc...)
-    # This includes the Blender.app in the archive, and targets the local app dir (/Applications) as an install
-    # destination for archiving to pick-up the bundle.
-    set_target_properties(blender PROPERTIES
-      XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
-      XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
-    )
-
+  if(COMMAND blender_platform_configure_bundle)
+    blender_platform_configure_bundle(blender "${BLENDER_DATE}")
   else()
     set_target_properties(blender PROPERTIES
       MACOSX_BUNDLE_INFO_PLIST ${OSX_APP_SOURCEDIR}/Contents/Info.plist
       MACOSX_BUNDLE_SHORT_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH}"
       MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH} ${BLENDER_DATE}"
     )
-
-    set_target_properties(blender PROPERTIES
-      XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
-      XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
-    )
-
-    if(WITH_BLENDER_THUMBNAILER)
-      set(OSX_THUMBNAILER_SOURCEDIR ${OSX_APP_SOURCEDIR}/Contents/PlugIns/blender-thumbnailer.appex)
-      set_target_properties(blender-thumbnailer PROPERTIES
-        BUNDLE_EXTENSION appex
-        MACOSX_BUNDLE_INFO_PLIST ${OSX_THUMBNAILER_SOURCEDIR}/Contents/Info.plist
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH}"
-        MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH} ${BLENDER_DATE}"
-      )
-    endif()
   endif()
 
+  # Xcode Archiving support for distributing the application (Testflight, App Store Connect, etc...)
+  set_target_properties(blender PROPERTIES
+    XCODE_ATTRIBUTE_SKIP_INSTALL "NO"
+    XCODE_ATTRIBUTE_INSTALL_PATH "$(LOCAL_APPS_DIR)"
+  )
+
+  if(WITH_BLENDER_THUMBNAILER)
+    set(OSX_THUMBNAILER_SOURCEDIR ${OSX_APP_SOURCEDIR}/Contents/PlugIns/blender-thumbnailer.appex)
+    set_target_properties(blender-thumbnailer PROPERTIES
+      BUNDLE_EXTENSION appex
+      MACOSX_BUNDLE_INFO_PLIST ${OSX_THUMBNAILER_SOURCEDIR}/Contents/Info.plist
+      MACOSX_BUNDLE_SHORT_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH}"
+      MACOSX_BUNDLE_LONG_VERSION_STRING "${BLENDER_VERSION}.${BLENDER_VERSION_PATCH} ${BLENDER_DATE}"
+    )
+  endif()
 
   # Gather the date in finder-style.
   execute_process(
@@ -1789,23 +1772,8 @@ elseif(APPLE)
     DESTINATION "."
   )
 
-  if(WITH_APPLE_CROSSPLATFORM)
-    install(
-      FILES ${OSX_APP_SOURCEDIR}/PkgInfo
-      DESTINATION "./Blender.app/"
-    )
-
-    install_dir(
-      ${OSX_APP_SOURCEDIR}/Assets
-     "./Blender.app/"
-    )
-    #IOS_FIXME: This makes no sense but need for now to prevent build breaks
-    if(WITH_BLENDER_THUMBNAILER)
-      install(
-        TARGETS blender-thumbnailer
-        DESTINATION "./Blender.app/"
-      )
-    endif()
+  if(COMMAND blender_platform_install_bundle_resources)
+    blender_platform_install_bundle_resources()
   else()
     install(
       FILES ${OSX_APP_SOURCEDIR}/Contents/PkgInfo
@@ -1816,13 +1784,13 @@ elseif(APPLE)
       ${OSX_APP_SOURCEDIR}/Contents/Resources
       "Blender.app/Contents"
     )
+  endif()
 
-    if(WITH_BLENDER_THUMBNAILER)
-      install(
-        TARGETS blender-thumbnailer
-        DESTINATION "./Blender.app/Contents/PlugIns"
-      )
-    endif()
+  if(WITH_BLENDER_THUMBNAILER)
+    install(
+      TARGETS blender-thumbnailer
+      DESTINATION "./Blender.app/Contents/PlugIns"
+    )
   endif()
 
   if(PLATFORM_BUNDLED_LIBRARIES AND TARGETDIR_LIB)
@@ -1830,34 +1798,6 @@ elseif(APPLE)
       FILES ${PLATFORM_BUNDLED_LIBRARIES}
       DESTINATION ${TARGETDIR_LIB}
     )
-    if(WITH_APPLE_CROSSPLATFORM)
-      message(STATUS "IOS_FIXME: PLATFORM_BUNDLED_LIBRARIES=${PLATFORM_BUNDLED_LIBRARIES}")
-      # Ensure dylibs are signed. We extract the codesigning identity from the system and format it correctly for the signing call.
-      set(EXTRACT_CODESIGN_IDENTITY_CMD "
-      execute_process(COMMAND security find-identity -v -p codesigning
-                      COMMAND sed -n 1p
-                      COMMAND sed \"s/\\\"//g\"
-                      COMMAND awk \"{$1=$2=\\\"\\\"; print $0}\"
-                      COMMAND awk \"{$1=$1};1\"
-                      OUTPUT_VARIABLE EXTRACT_CODESIGN_IDENTITY
-                      OUTPUT_STRIP_TRAILING_WHITESPACE)")
-      install(CODE "
-      ${EXTRACT_CODESIGN_IDENTITY_CMD}
-      # Iterate through all of the libraries copied to the bundle and sign
-      file(GLOB _signing_libraries \${CMAKE_INSTALL_PREFIX}/${TARGETDIR_LIB}/*.*)
-      foreach(f \${_signing_libraries})
-        message(\"Signing \${f} with signing identity: '\${EXTRACT_CODESIGN_IDENTITY}'\")
-        execute_process(COMMAND codesign -s \"\${EXTRACT_CODESIGN_IDENTITY}\" --options runtime -f \${f})
-      endforeach()")
-      # Ensure python dylib is signed
-      install(CODE "
-      ${EXTRACT_CODESIGN_IDENTITY_CMD}
-      file(GLOB _signing_libraries \${CMAKE_INSTALL_PREFIX}/${TARGETDIR_VER}/python/bin/*.*)
-      foreach(f \${_signing_libraries})
-        message(\"Signing \${f} with signing identity: '\${EXTRACT_CODESIGN_IDENTITY}'\")
-        execute_process(COMMAND codesign -s \"\${EXTRACT_CODESIGN_IDENTITY}\" --options runtime -f \${f})
-      endforeach()")
-    endif()
   endif()
 
   if(WITH_VULKAN_BACKEND)
@@ -1868,7 +1808,12 @@ elseif(APPLE)
   endif()
 
   # Python.
-  if(WITH_PYTHON AND NOT WITH_PYTHON_MODULE AND NOT WITH_PYTHON_FRAMEWORK)
+  set(BLENDER_PLATFORM_PYTHON_INSTALLED OFF)
+  if(COMMAND blender_platform_install_python AND WITH_PYTHON AND NOT WITH_PYTHON_MODULE)
+    blender_platform_install_python()
+  endif()
+  if(NOT BLENDER_PLATFORM_PYTHON_INSTALLED AND
+     WITH_PYTHON AND NOT WITH_PYTHON_MODULE AND NOT WITH_PYTHON_FRAMEWORK)
     # Copy the python libraries into the install directory.
     install_dir(
       ${PYTHON_LIBPATH}/python${PYTHON_VERSION}
@@ -1898,7 +1843,8 @@ elseif(APPLE)
     )
   endif()
 
-  if(NOT WITH_PYTHON_MODULE AND WITH_PYTHON AND WITH_PYTHON_INSTALL)
+  if(NOT BLENDER_PLATFORM_PYTHON_INSTALLED AND
+     NOT WITH_PYTHON_MODULE AND WITH_PYTHON AND WITH_PYTHON_INSTALL)
     get_filename_component(PYTHON_EXECUTABLE_NAME_ONLY ${PYTHON_EXECUTABLE} NAME)
     configure_file(
       ${CMAKE_SOURCE_DIR}/release/darwin/scripts/blender-system-info.sh.in
@@ -1906,19 +1852,10 @@ elseif(APPLE)
       @ONLY
     )
     unset(PYTHON_EXECUTABLE_NAME_ONLY)
-    if(WITH_APPLE_CROSSPLATFORM)
-    # IOS_FIXME: Unlikely to be required for iOS as user can't run the script.
     install(
       PROGRAMS ${CMAKE_BINARY_DIR}/release/darwin/scripts/blender-system-info.sh
-      DESTINATION "Blender.app/"
+      DESTINATION "Blender.app/Contents/Resources"
     )
-    else()
-      install(
-        PROGRAMS ${CMAKE_BINARY_DIR}/release/darwin/scripts/blender-system-info.sh
-        DESTINATION "Blender.app/Contents/Resources"
-      )
-    endif()
-	
   endif()
 
 endif()
@@ -1927,7 +1864,7 @@ endif()
 # the site-packages directory.
 if(WITH_PYTHON_MODULE AND LIBDIR AND NOT WIN32)
   # It's possible for a build using LIBDIR to reference a non-standard Python installation.
-  path_is_prefix(LIBDIR PYTHON_INCLUDE_DIR _is_python_in_libdir)
+  cmake_path(IS_PREFIX LIBDIR "${PYTHON_INCLUDE_DIR}" NORMALIZE _is_python_in_libdir)
   if(_is_python_in_libdir)
     install(
       DIRECTORY ${LIBDIR}/python/lib/python${PYTHON_VERSION}/site-packages/MaterialX
@@ -2053,10 +1990,7 @@ unset(LIB)
 
 setup_platform_linker_flags(blender)
 setup_platform_linker_libs(blender)
-
-if(DEFINED PLATFORM_SYMBOLS_MAP)
-  set_target_properties(blender PROPERTIES LINK_DEPENDS ${PLATFORM_SYMBOLS_MAP})
-endif()
+setup_platform_linker_symbol_hiding(blender)
 
 blender_target_include_dirs(blender ${INC})
 
@@ -2087,38 +2021,19 @@ if((DEFINED LIBDIR) AND TARGETDIR_LIB)
         ${USD_LIBRARY_DIR}/usd
         DESTINATION ${TARGETDIR_LIB}
       )
-      if(WITH_HYDRA)
-        install(DIRECTORY
-          ${LIBDIR}/usd/plugin/usd/hdStorm
-          ${LIBDIR}/usd/plugin/usd/usdShaders
-          ${LIBDIR}/usd/plugin/usd/hioOiio
-          DESTINATION "blender.shared/usd"
-        )
-      endif()
+      install(DIRECTORY ${LIBDIR}/usd/plugin/usd/ DESTINATION "blender.shared/usd")
     elseif(USD_PYTHON_SUPPORT)
       install(DIRECTORY
         ${USD_LIBRARY_DIR}/usd
         DESTINATION ${TARGETDIR_LIB}
       )
-      if(WITH_HYDRA)
-        install(DIRECTORY
-          ${LIBDIR}/usd/plugin/usd/hdStorm
-          ${LIBDIR}/usd/plugin/usd/usdShaders
-          DESTINATION ${TARGETDIR_LIB}/usd
-        )
-      endif()
+      install(DIRECTORY ${LIBDIR}/usd/plugin/usd/ DESTINATION ${TARGETDIR_LIB}/usd)
     else()
       install(DIRECTORY
         ${USD_LIBRARY_DIR}/usd
         DESTINATION "${TARGETDIR_VER}/datafiles"
       )
-      if(WITH_HYDRA)
-        install(DIRECTORY
-          ${LIBDIR}/usd/plugin/usd/hdStorm
-          ${LIBDIR}/usd/plugin/usd/usdShaders
-          DESTINATION "${TARGETDIR_VER}/datafiles/usd"
-        )
-      endif()
+      install(DIRECTORY ${LIBDIR}/usd/plugin/usd/ DESTINATION "${TARGETDIR_VER}/datafiles/usd")
     endif()
   endif()
   if(WIN32)
@@ -2160,12 +2075,15 @@ endif()
 
 if(WIN32)
   if(WITH_CYCLES_DEVICE_HIPRT)
-    if(EXISTS ${LIBDIR}/hiprt/bin/hiprt64.dll)
-      windows_install_shared_manifest(
-        FILES ${LIBDIR}/hiprt/bin/hiprt64.dll
-        ALL
-      )
-    endif()
+    # Cycles does `find_package(HIPRT)` for its compilation purposes, and the variables defined by
+    # the FindHIPRT.cmake are only available in Cycles. In order to access HIPRT_VERSION need to
+    # find the package from here as well.
+    # For the strict compilation rely on Cycles to take care of set_and_warn_library_found().
+    find_package(HIPRT)
+    windows_install_shared_manifest(
+      FILES ${LIBDIR}/hiprt/bin/hiprt${HIPRT_VERSION}64.dll
+      ALL
+    )
   endif()
 endif()
 

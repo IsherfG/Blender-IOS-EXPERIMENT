@@ -19,9 +19,6 @@
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 
-bool GHOST_ContextIOS::current_drawable_presented = false;
-id<CAMetalDrawable> GHOST_ContextIOS::prevDrawable = nil;
-
 static void ghost_fatal_error_dialog(const char * /*msg*/)
 {
   exit(1);
@@ -56,27 +53,11 @@ GHOST_ContextIOS::GHOST_ContextIOS(const GHOST_ContextParams &context_params,
     /* Initialize Metal device (Using system default) */
     id<MTLDevice> metalDevice = MTLCreateSystemDefaultDevice();
 
-    CGRect screenRect = [[UIScreen mainScreen] bounds];
-    CGFloat screenWidth = screenRect.size.width;
-    CGFloat screenHeight = screenRect.size.height;
-    if (screenWidth <= 0 || screenHeight <= 0) {
-      /* TODO: Avoid using default resolution, this path should however not be hit. */
-      screenWidth = 2532;
-      screenHeight = 1170;
-    }
-
-    GHOST_ASSERT(screenWidth > 0 && screenHeight > 0, "Negative or null display dimmensions");
-
-    if (screenWidth <= 0) {
-      /* TODO: Avoid using default resolution, this path should however not be hit. */
-      screenWidth = 2532;
-      screenHeight = 1170;
-    }
-
-    /* Create own device */
-    metal_view_ = [[MTKView alloc] initWithFrame:CGRectMake(0, 0, screenWidth, screenHeight)];
+    /* Off-screen contexts have no window scene or display whose dimensions they can inherit. */
+    metal_view_ = [[MTKView alloc] initWithFrame:CGRectMake(0, 0, 1, 1)];
     GHOST_ASSERT(metal_view_, "iOS: Failed to initialize Metal View");
     metal_view_.device = metalDevice;
+    metal_view_.drawableSize = CGSizeMake(1, 1);
     ui_view_ = (UIView *)metal_view_;
 
     owns_metal_device_ = true;
@@ -113,14 +94,11 @@ GHOST_ContextIOS::~GHOST_ContextIOS()
   }
 }
 
-GHOST_TSuccess GHOST_ContextIOS::swapBufferAcquire()
-{
-  return GHOST_kSuccess;
-}
-
 GHOST_TSuccess GHOST_ContextIOS::swapBufferRelease()
 {
-  metalSwapBuffers();
+  if (metal_view_) {
+    metalSwapBuffers();
+  }
   return GHOST_kSuccess;
 }
 
@@ -248,7 +226,6 @@ void GHOST_ContextIOS::metalInit()
 
       constexpr sampler s {};
 
-      
       fragment float4 fragment_shader(Vertex v [[stage_in]],
                     texture2d<float> t [[texture(0)]]) {
 
@@ -325,19 +302,14 @@ void GHOST_ContextIOS::metalInitFramebuffer()
 
 void GHOST_ContextIOS::metalUpdateFramebuffer()
 {
-  CGRect screenRect = [[UIScreen mainScreen] bounds];
-  CGFloat scaling_fac = [UIScreen mainScreen].scale;
-  CGFloat screenWidth = screenRect.size.width;
-  CGFloat screenHeight = screenRect.size.height;
-  size_t width = screenWidth * scaling_fac;
-  size_t height = screenHeight * scaling_fac;
+  const CGSize drawable_size = metal_view_.drawableSize;
+  const size_t width = size_t(drawable_size.width);
+  const size_t height = size_t(drawable_size.height);
 
-  if (width <= 0 && height <= 0) {
-    GHOST_ASSERT(false, "Negative or null display dimmensions");
-    /* TOOD: Better default size. This should not happen but is here to avoid erroneous
-     * initialization. */
-    width = 1440;
-    height = 960;
+  /* UIKit can temporarily report an empty drawable while a scene is inactive or resizing. Keep
+   * the last valid backing texture until the view has a drawable again. */
+  if (width == 0 || height == 0) {
+    return;
   }
 
   /* METAL-only path -- Test metal overlay. */
@@ -395,8 +367,20 @@ void GHOST_ContextIOS::metalRegisterPresentCallback(void (*callback)(
   this->contextPresentCallback = callback;
 }
 
+void GHOST_ContextIOS::beginFrame()
+{
+  drawable_presented_in_frame_ = false;
+}
+
 void GHOST_ContextIOS::metalSwapBuffers()
 {
+  /* Blender can request more than one swap while handling a display callback. The window
+   * coalesces those requests, and this context guard makes the one-present-per-callback contract
+   * explicit at the drawable owner. */
+  if (drawable_presented_in_frame_) {
+    return;
+  }
+
   /* clang-format off */
   @autoreleasepool {
     /* clang-format on */
@@ -422,25 +406,13 @@ void GHOST_ContextIOS::metalSwapBuffers()
       return;
     }
 
-    /* Double presents indicate that we are trying to present updates faster
-     * than the display's refresh rate. We should always display the latest update
-     * (or the screen will lag Blender's view of the world) but output a message
-     * so we are aware and can investigate. */
-    if (current_drawable != GHOST_ContextIOS::prevDrawable) {
-      GHOST_ContextIOS::current_drawable_presented = false;
-      GHOST_ContextIOS::prevDrawable = current_drawable;
-    }
-    if (current_drawable_presented) {
-      NSLog(@"Double present (MTKView)%p!", metal_view_);
-    }
-
     GHOST_ASSERT(contextPresentCallback, "iOS: Missing context present callback");
     GHOST_ASSERT(m_defaultFramebufferMetalTexture[current_swapchain_index].texture != nil,
                  "iOS: Default Framebuffer Metal Texture is nil");
+    drawable_presented_in_frame_ = true;
     (*contextPresentCallback)(passDescriptor,
                               (id<MTLRenderPipelineState>)metal_render_pipeline_,
                               m_defaultFramebufferMetalTexture[current_swapchain_index].texture,
                               current_drawable);
-    GHOST_ContextIOS::current_drawable_presented = true;
   }
 }

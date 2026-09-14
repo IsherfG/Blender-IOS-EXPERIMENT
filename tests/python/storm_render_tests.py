@@ -24,6 +24,12 @@ except ImportError:
     # this script is run during preparation steps.
     pass
 
+BLOCKLIST = [
+    # Currently, image_mipmap tests are not enabled for storm-usd
+    "image_cache_evict.blend",
+    "image_mipmap_.*.blend",
+]
+
 # Unsupported or broken scenarios for the Storm render engine
 BLOCKLIST_HYDRA = [
     # Corrupted output around borders
@@ -36,6 +42,10 @@ BLOCKLIST_HYDRA = [
     "overlapping_octrees.blend",
     # No number of sample support, so will not converge to gray as expected
     "white_noise_256spp.blend",
+    # Render is incorrect
+    "principled_bsdf_thin_glass.blend",
+    # Custom OSL camera not supported.
+    "osl_camera_.*.blend",
 ]
 
 BLOCKLIST_USD = [
@@ -50,6 +60,10 @@ BLOCKLIST_USD = [
     "overlapping_octrees.blend",
     # No number of sample support, so will not converge to gray as expected
     "white_noise_256spp.blend",
+    # Render is incorrect
+    "principled_bsdf_thin_glass.blend",
+    # Custom OSL camera not supported.
+    "osl_camera_.*.blend",
 ]
 
 # Metal support in Storm is no as good as OpenGL, though this needs to be
@@ -83,6 +97,7 @@ BLOCKLIST_METAL = [
 # AMD seems to have similar limitations as Metal for transparency.
 BLOCKLIST_AMD = BLOCKLIST_METAL + [
     "volume_tricubic_interpolation.blend",
+    "holdout.blend",
 ]
 
 # Minor difference in texture coordinate for white noise hash.
@@ -91,6 +106,8 @@ BLOCKLIST_OPENGL_INTEL_LINUX = [
     "hair_transmission.blend",
     "principled_bsdf_emission.blend",
     "principled_bsdf_sheen.blend",
+    # Rasterization differences in hair and point clouds.
+    "instance_types.blend",
 ]
 
 # Some Vulkan tests are broken for all vendors.
@@ -186,6 +203,7 @@ def get_arguments(filepath, output_filepath, gpu_backend):
         "--factory-startup",
         "--enable-autoexec",
         "--debug-memory",
+        "--console-crash-handler",
         "--debug-exit-on-error"]
 
     if gpu_backend:
@@ -220,7 +238,7 @@ def main():
     parser = create_argparse()
     args = parser.parse_args()
 
-    blocklist = []
+    blocklist = BLOCKLIST
     if args.gpu_backend == "metal":
         blocklist += BLOCKLIST_METAL
     elif args.gpu_backend == "vulkan":
@@ -253,7 +271,8 @@ def main():
             variation=args.gpu_backend,
             blocklist=blocklist +
             BLOCKLIST_HYDRA)
-        report.set_reference_dir("storm_hydra_renders")
+        report.set_reference_dir("storm_renders")
+        report.set_reference_override_dir("storm_hydra_renders")
         if args.gpu_backend == "vulkan":
             report.set_compare_engine('storm_hydra', 'opengl')
         else:
@@ -266,7 +285,7 @@ def main():
             variation=args.gpu_backend,
             blocklist=blocklist +
             BLOCKLIST_USD)
-        report.set_reference_dir("storm_usd_renders")
+        report.set_reference_dir("storm_renders")
         report.set_compare_engine('storm_hydra')
         if args.gpu_backend == "metal":
             report.set_compare_engine('storm_hydra', 'metal')

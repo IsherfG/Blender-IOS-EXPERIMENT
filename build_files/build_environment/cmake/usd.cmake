@@ -112,33 +112,6 @@ set(USD_EXTRA_ARGS
   -DSpirvReflect_ROOT=${LIBDIR}/spirv_reflect
 )
 
-if(WITH_APPLE_CROSSPLATFORM)
-
-  # Use iOS utility to set some env vars to help us build for iOS
-  include(cmake/ios_defines.cmake)
-  ios_get_dependency_env_vars(MATERIALX)
-  set(USD_CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${IOSDEP_INCLUDES_STRING}")
-  set(USD_CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${IOSDEP_INCLUDES_STRING}")
-  set(USD_CMAKE_CXX_STANDARD_LIBRARIES "${CMAKE_CXX_STANDARD_LIBRARIES} ${IOSDEP_LIBDIRS_STRING}")
-
-  set(USD_EXTRA_ARGS
-    ${USD_EXTRA_ARGS}
-    # Disable OpenGL for iOS.
-    -DPXR_ENABLE_GL_SUPPORT=OFF
-    # TODO: Re-enable metal support once iOS compatible. Require updating USD.
-    # NOTE: Temporarily disables: PXR_BUILD_GPU_SUPPORT, which will disable hydra storm.
-    -DPXR_ENABLE_METAL_SUPPORT=OFF
-
-    # Override CXX flags to directly provide required headers.	
-    -DCMAKE_CXX_FLAGS=${USD_CMAKE_CXX_FLAGS} 
-    -DCMAKE_C_FLAGS=${USD_CMAKE_C_FLAGS}
-    -DCMAKE_CXX_STANDARD_LIBRARIES=${USD_CMAKE_CXX_STANDARD_LIBRARIES} 
-  )
-  set(USD_BASE_PATCH ${PATCH_DIR}/usd_ios.diff)
-else()
-  set(USD_BASE_PATCH ${PATCH_DIR}/usd.diff)
-endif()
-
 # Ray: I'm not sure if the other platforms relied on this or not but this is no longer
 # needed for windows. If mac/lin confirm, this can be removed.
 if(NOT WIN32)
@@ -160,7 +133,7 @@ ExternalProject_Add(external_usd
   PATCH_COMMAND
     ${PATCH_CMD} -p 1 -d
       ${BUILD_DIR}/usd/src/external_usd <
-      ${USD_BASE_PATCH} &&
+      ${PATCH_DIR}/usd.diff &&
     ${PATCH_CMD} -p 1 -d
       ${BUILD_DIR}/usd/src/external_usd <
       ${PATCH_DIR}/usd_core_profile.diff &&
@@ -170,9 +143,6 @@ ExternalProject_Add(external_usd
     ${PATCH_CMD} -p 1 -d
       ${BUILD_DIR}/usd/src/external_usd <
       ${PATCH_DIR}/usd_noboost.diff &&
-    ${PATCH_CMD} -p 1 -d
-      ${BUILD_DIR}/usd/src/external_usd <
-      ${PATCH_DIR}/usd_mip_trace_3837.diff &&
     ${PATCH_CMD} -p 1 -d
       ${BUILD_DIR}/usd/src/external_usd <
       ${PATCH_DIR}/usd_no_vulkan_sdk.diff &&
@@ -186,8 +156,15 @@ ExternalProject_Add(external_usd
       ${BUILD_DIR}/usd/src/external_usd <
       ${PATCH_DIR}/usd_vulkan_headless_3931.diff &&
     ${PATCH_CMD} -p 1 -d
-      ${BUILD_DIR}/usd/src/external_usd <
-      ${PATCH_DIR}/usd_linux_arm64_3764.diff
+      ${BUILD_DIR}/usd/src/external_usd 
+     -i ${PATCH_DIR}/usd_f595276c1ac231bb0bc632697f398a681a963e3f.diff &&
+    ${PATCH_CMD} -p 1 -d
+      ${BUILD_DIR}/usd/src/external_usd  
+     -i ${PATCH_DIR}/usd_a609a89a750f1c70f5bfd61bb418d5a09eaa6585.diff &&
+    ${PATCH_CMD} -p 1 -d
+      ${BUILD_DIR}/usd/src/external_usd  
+     -i ${PATCH_DIR}/usd_5744a98789c934e8810058b0f21d22f344df28b0.diff
+
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${LIBDIR}/usd
     -Wno-dev
@@ -210,7 +187,7 @@ add_dependencies(
   external_vulkan_utility_libraries
   external_shaderc
   external_spirv_reflect
-  openvdb
+  external_openvdb
 )
 
 # Since USD 21.11 the libraries are prefixed with "usd_",

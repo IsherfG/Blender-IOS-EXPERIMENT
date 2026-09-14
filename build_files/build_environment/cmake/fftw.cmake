@@ -4,7 +4,7 @@
 
 set(FFTW_EXTRA_ARGS "")
 
-macro(fftw_build FFTW_POSTFIX)
+function(fftw_build FFTW_POSTFIX)
   if(WIN32)
     if("${FFTW_POSTFIX}" STREQUAL "float")
       set(FFTW_EXTRA_ARGS -DENABLE_FLOAT=ON)
@@ -27,12 +27,6 @@ macro(fftw_build FFTW_POSTFIX)
       INSTALL_DIR ${LIBDIR}/fftw3
     )
   else()
-    if(WITH_APPLE_CROSSPLATFORM)
-      # Building for non-local architecture.
-      set(CROSS_COMPILE_FLAGS "--host=arm")
-    else()
-      set(CROSS_COMPILE_FLAGS)
-    endif()
     set(FFTW_EXTRA_ARGS --enable-static --enable-threads)
     set(FFTW_INSTALL install)
     ExternalProject_Add(external_fftw3_${FFTW_POSTFIX}
@@ -44,8 +38,7 @@ macro(fftw_build FFTW_POSTFIX)
       CONFIGURE_COMMAND ${CONFIGURE_ENV} &&
         cd ${BUILD_DIR}/fftw3/src/external_fftw3_${FFTW_POSTFIX}/ &&
         ${CONFIGURE_COMMAND} ${FFTW_EXTRA_ARGS} ${ARGN} --prefix=${mingw_LIBDIR}/fftw3
-        ${CROSS_COMPILE_FLAGS}
-      
+
       BUILD_COMMAND ${CONFIGURE_ENV} &&
         cd ${BUILD_DIR}/fftw3/src/external_fftw3_${FFTW_POSTFIX}/ &&
         make -j${MAKE_THREADS}
@@ -57,7 +50,7 @@ macro(fftw_build FFTW_POSTFIX)
       INSTALL_DIR ${LIBDIR}/fftw3
     )
   endif()
-endmacro()
+endfunction()
 
 fftw_build(double)
 fftw_build(float --enable-float)

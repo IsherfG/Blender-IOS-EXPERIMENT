@@ -458,7 +458,7 @@ static const char *to_string(const Interpolation &interp)
 #if 0
 #  define LINE ""
 #else
-#  define LINE "\n#line " STRINGIFY(__LINE__) " \"" __FILE__ "\"\n"
+#  define LINE "\n#line " STRINGIFY(__LINE__) "\n"
 #endif
 
 std::string wrap_type(StringRefNull type_name, const ShaderStage stage)
@@ -946,13 +946,37 @@ static std::string generate_raster_builtins(GeneratedStreams &ss,
     generate_raster_builtin(ss, decl, "float", "gl_PointSize", "[[point_size]]");
   }
   if (bool(info.builtins_ & BuiltinBits::CLIP_DISTANCES) && stage == ShaderStage::VERTEX) {
+    /** WORKAROUND: BSL has currently no way to disable clip distances using compilation constant.
+     * This induce a huge performance gap with the BSL port of workbench shader (see #155865).
+     * This adds back the same preprocessor check that was previously here. However, this code is
+     * heavily tailored to workbench and assume exact match with the compilation constant name.
+     * GLSL doesn't suffer the same issue as gl_ClipDistance is only considered used if assigned.
+     */
+    std::string start_cond =
+        "\n#if (defined(SRT_CONSTANT_use_clipping) ? (SRT_CONSTANT_use_clipping == 1) : "
+        "defined(USE_WORLD_CLIP_PLANES))\n";
+    std::string end_cond = "\n#endif\n";
+
+    decl << start_cond;
+    ss.wrapper_class_members << start_cond;
+    ss.wrapper_constructor_assign << start_cond;
+
     generate_raster_builtin(ss, decl, "float", "gl_ClipDistance", "[[clip_distance]]", " [6]");
+
+    decl << end_cond;
+    ss.wrapper_class_members << end_cond;
+    ss.wrapper_constructor_assign << end_cond;
+
+    ss.entry_point_start << start_cond;
+
     /* We always create all planes and initialize them to 1 (passing). This way the shader doesn't
      * have to write to them for the ones it doesn't need. */
     StringRefNull vert_inout_inst = get_stage_out_instance_name(stage);
     for ([[maybe_unused]] const int i : IndexRange(6)) {
       ss.entry_point_start << "  " << vert_inout_inst << ".gl_ClipDistance[" << i << "] = 1.0f;\n";
     }
+
+    ss.entry_point_start << end_cond;
   }
   return decl.str();
 }
@@ -1103,6 +1127,76 @@ static std::string generate_fragment_builtins(GeneratedStreams &ss, const Shader
   return decl.str();
 }
 
+static StringRefNull subpass_input_swizzle(const Type type)
+{
+  switch (type) {
+    case Type::float_t:
+    case Type::int_t:
+    case Type::uint_t:
+      return ".x";
+    case Type::float2_t:
+    case Type::int2_t:
+    case Type::uint2_t:
+      return ".xy";
+    case Type::float3_t:
+    case Type::int3_t:
+    case Type::uint3_t:
+      return ".xyz";
+    case Type::float4_t:
+    case Type::int4_t:
+    case Type::uint4_t:
+      return "";
+    default:
+      BLI_assert_unreachable();
+      return "";
+  }
+}
+
+static bool subpass_input_is_2d_array(const ImageType type)
+{
+  return ELEM(type, ImageType::Float2DArray, ImageType::Int2DArray, ImageType::Uint2DArray);
+}
+
+static void generate_subpass_input_fallback(GeneratedStreams &generated,
+                                            const ShaderCreateInfo &info)
+{
+  const bool has_frag_coord = bool(info.builtins_ & BuiltinBits::FRAG_COORD);
+  const std::string position = has_frag_coord ? "mtl_vert_out.gl_FragCoord" :
+                                                "mtl_subpass_position";
+  if (!has_frag_coord) {
+    generated.entry_point_parameters << Sep() << "float4 mtl_subpass_position [[position]]";
+  }
+
+  for (const ShaderCreateInfo::SubpassIn &input : info.subpass_inputs_) {
+    BLI_assert(ELEM(input.img_type,
+                    ImageType::Float2D,
+                    ImageType::Int2D,
+                    ImageType::Uint2D,
+                    ImageType::Float2DArray,
+                    ImageType::Int2DArray,
+                    ImageType::Uint2DArray));
+
+    const std::string texture_name = "gpu_subpass_img_" + std::to_string(input.index);
+    const std::string texture_type = std::string(to_raw_type(input.img_type)) + "<" +
+                                     to_component_type(input.img_type) + ", access::read>";
+    generated.entry_point_parameters << Sep() << texture_type << " " << texture_name
+                                     << " [[texture(" << (MTL_IMAGE_SLOT_OFFSET + input.index)
+                                     << ")]]";
+
+    generated.wrapper_class_members << "  const " << input.type << " " << input.name << ";\n";
+    generated.wrapper_constructor_parameters << Sep() << "const " << input.type << " "
+                                             << input.name;
+    generated.wrapper_constructor_assign << Sep() << input.name << "(" << input.name << ")";
+
+    generated.wrapper_instance_init << Sep() << input.type << "(" << texture_name << ".read(uint2("
+                                    << position << ".xy), 0";
+    if (subpass_input_is_2d_array(input.img_type)) {
+      generated.wrapper_instance_init << ", 0";
+    }
+    generated.wrapper_instance_init << ")" << subpass_input_swizzle(input.type) << ")";
+  }
+}
+
 static void generate_subpass_inputs(GeneratedStreams &generated, const ShaderCreateInfo &info)
 {
   constexpr ShaderStage stage = ShaderStage::FRAGMENT;
@@ -1110,6 +1204,11 @@ static void generate_subpass_inputs(GeneratedStreams &generated, const ShaderCre
   std::string in_class = wrap_type(in_class_local, stage);
 
   if (info.subpass_inputs_.is_empty()) {
+    return;
+  }
+
+  if (!MTLBackend::get_capabilities().supports_native_tile_inputs) {
+    generate_subpass_input_fallback(generated, info);
     return;
   }
 
@@ -1349,6 +1448,8 @@ std::pair<std::string, std::string> generate_entry_point(const ShaderCreateInfo 
   generate_resources(generated, stage, info);
 
   std::stringstream prefix;
+  /* Note: The shader log class expect a `#line 1 "filename"` For correct filename. */
+  prefix << "#line 1 \"" __FILE__ "\"\n";
   prefix << LINE;
   prefix << generated.wrapper_class_prefix.str() << "\n\n";
   prefix << "struct " << stage_class_name << " {\n";

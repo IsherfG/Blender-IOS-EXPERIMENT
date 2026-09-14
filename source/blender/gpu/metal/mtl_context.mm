@@ -227,7 +227,7 @@ MTLContext::MTLContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_contex
   /* Enable increased concurrent shader compiler limit.
    * NOTE: Disable warning for missing method when building on older OS's, as compiled code will
    * still work correctly when run on a system with the API available. */
-#ifndef WITH_APPLE_CROSSPLATFORM
+#if MTL_BACKEND_DESKTOP
   if (@available(macOS 13.3, *)) {
     [this->device setShouldMaximizeConcurrentCompilation:YES];
   }
@@ -236,7 +236,9 @@ MTLContext::MTLContext(GHOST_IWindow *ghost_window, GHOST_IContext *ghost_contex
 
   /* Register present callback. */
   this->ghost_context_->metalRegisterPresentCallback(&present);
+#if MTL_BACKEND_SUPPORTS_XR
   this->ghost_context_->metalRegisterXrBlitCallback(&xr_blit);
+#endif
 
   /* Create FrameBuffer handles. */
   MTLFrameBuffer *mtl_front_left = new MTLFrameBuffer(this, "front_left");
@@ -564,14 +566,11 @@ id<MTLBuffer> MTLContext::get_null_buffer()
    * buffer. The null buffer needs to at least cover the size of these
    * UBOs to avoid any GPU memory issues. */
   static const int null_buffer_size = 20480;
-
   MTLResourceOptions options = MTLResourceStorageModeShared;
 #if MTL_BACKEND_SUPPORTS_MANAGED_BUFFERS
   options = MTLResourceStorageModeManaged;
 #endif
-
   null_buffer_ = [this->device newBufferWithLength:null_buffer_size options:options];
-  [null_buffer_ retain];
   uint32_t *null_data = (uint32_t *)calloc(1, null_buffer_size);
   memcpy([null_buffer_ contents], null_data, null_buffer_size);
 #if MTL_BACKEND_SUPPORTS_MANAGED_BUFFERS
@@ -592,19 +591,18 @@ id<MTLBuffer> MTLContext::get_null_attribute_buffer()
   /* Allocate Null buffer if it has not yet been created.
    * Min buffer size is 256 bytes -- though we only need 64 bytes of data. */
   static const int null_buffer_size = 256;
-#if MTL_BACKEND_SUPPORTS_MANAGED_BUFFERS
-  MTLResourceOptions options = MTLResourceStorageModeManaged;
-#else
   MTLResourceOptions options = MTLResourceStorageModeShared;
+#if MTL_BACKEND_SUPPORTS_MANAGED_BUFFERS
+  options = MTLResourceStorageModeManaged;
 #endif
   null_attribute_buffer_ = [this->device newBufferWithLength:null_buffer_size options:options];
   BLI_assert(null_attribute_buffer_ != nil);
-  [null_attribute_buffer_ retain];
   float data[4] = {0.0f, 0.0f, 0.0f, 1.0f};
   memcpy([null_attribute_buffer_ contents], data, sizeof(float) * 4);
 #if MTL_BACKEND_SUPPORTS_MANAGED_BUFFERS
   [null_attribute_buffer_ didModifyRange:NSMakeRange(0, null_buffer_size)];
 #endif
+
   return null_attribute_buffer_;
 }
 
@@ -921,7 +919,7 @@ static void ensure_push_constant(MTLContext &ctx,
 }
 
 /* Bind UBOs and SSBOs to an active render command encoder using the rendering state of the
- * current context -> Active shader, Bound UBOs).
+ * current context -> Active shader, Bound UBOs.
  * NOTE: `ensure_buffer_bindings` must be called after `ensure_texture_bindings` to allow
  * for binding of buffer-backed texture's data buffer and metadata. */
 template<typename CommandEncoderT>
@@ -1281,23 +1279,23 @@ bool MTLContext::ensure_render_pipeline_state(MTLPrimitiveType mtl_prim_type)
 
       /* Some scissor assignments exceed the bounds of the viewport due to implicitly added
        * padding to the width/height - Clamp width/height. */
-      BLI_assert(scissor.x >= 0 && scissor.x < render_fb->get_default_width());
-      BLI_assert(scissor.y >= 0 && scissor.y < render_fb->get_default_height());
-      scissor.width = (uint)min_ii(scissor.width,
-                                   max_ii(render_fb->get_default_width() - (int)(scissor.x), 0));
-      scissor.height = (uint)min_ii(scissor.height,
-                                    max_ii(render_fb->get_default_height() - (int)(scissor.y), 0));
+      BLI_assert(scissor.x >= 0 && scissor.x < render_fb->get_attachment_width());
+      BLI_assert(scissor.y >= 0 && scissor.y < render_fb->get_attachment_height());
+      scissor.width = (uint)min_ii(
+          scissor.width, max_ii(render_fb->get_attachment_width() - (int)(scissor.x), 0));
+      scissor.height = (uint)min_ii(
+          scissor.height, max_ii(render_fb->get_attachment_height() - (int)(scissor.y), 0));
       BLI_assert(scissor.width > 0 &&
-                 (scissor.x + scissor.width <= render_fb->get_default_width()));
-      BLI_assert(scissor.height > 0 && (scissor.height <= render_fb->get_default_height()));
+                 (scissor.x + scissor.width <= render_fb->get_attachment_width()));
+      BLI_assert(scissor.height > 0 && (scissor.height <= render_fb->get_attachment_height()));
     }
     else {
-      /* Scissor is disabled, reset to default size as scissor state may have been previously
+      /* Scissor is disabled, reset to attachment size as scissor state may have been previously
        * assigned on this encoder.
        * NOTE: If an attachment-less framebuffer is used, fetch specified width/height rather
-       * than active attachment width/height as provided by get_default_w/h(). */
-      uint default_w = render_fb->get_default_width();
-      uint default_h = render_fb->get_default_height();
+       * than active attachment width/height as provided by get_attachment_w/h(). */
+      uint default_w = render_fb->get_attachment_width();
+      uint default_h = render_fb->get_attachment_height();
       bool is_attachmentless = (default_w == 0) && (default_h == 0);
       scissor.x = 0;
       scissor.y = 0;
@@ -1864,7 +1862,7 @@ void MTLContext::sampler_state_cache_init()
                                    MTLSamplerMipFilterNotMipmapped;
         descriptor.lodMinClamp = -1000;
         descriptor.lodMaxClamp = 1000;
-        float aniso_filter = max_ff(16, U.anisotropic_filter);
+        float aniso_filter = min_ff(float(GPU_anisotropic_samples_get(filtering)), 16.0f);
         descriptor.maxAnisotropy = (filtering & GPU_SAMPLER_FILTERING_MIPMAP) ? aniso_filter : 1;
         descriptor.compareFunction = MTLCompareFunctionAlways;
         descriptor.supportArgumentBuffers = true;
@@ -1986,7 +1984,6 @@ id<MTLComputePipelineState> MTLContextComputeUtils::get_buffer_clear_pso()
       return nil;
     }
 
-    [buffer_clear_pso_ retain];
   }
 
   BLI_assert(buffer_clear_pso_ != nil);

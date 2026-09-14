@@ -23,13 +23,6 @@ else()
   set(X264_CONFIGURE_ENV ${CONFIGURE_ENV})
 endif()
 
-if(WITH_APPLE_CROSSPLATFORM)
-  # Disable ASM for iOS for now 
-  # Here seems to have some good tips for building for iOS with asm
-  # https://github.com/kewlbear/x264-ios/blob/master/build-x264.sh
-  set(X264_EXTRA_ARGS ${X264_EXTRA_ARGS} "--disable-asm")
-endif()
-
 ExternalProject_Add(external_x264
   URL file://${PACKAGE_DIR}/${X264_FILE}
   DOWNLOAD_DIR ${DOWNLOAD_DIR}
@@ -63,7 +56,7 @@ if(WIN32)
   if(BLENDER_PLATFORM_ARM)
     add_dependencies(
       external_x264
-      ll
+      external_llvm
     )
   endif()
 else()

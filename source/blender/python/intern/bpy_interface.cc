@@ -71,6 +71,10 @@
 #include "../gpu/gpu_py_api.hh"
 #include "../mathutils/mathutils.hh"
 
+#ifdef BLENDER_PYTHON_PLATFORM_HEADER
+#  include BLENDER_PYTHON_PLATFORM_HEADER
+#endif
+
 namespace blender {
 
 /* Logging types to use anywhere in the Python modules. */
@@ -118,8 +122,17 @@ void BPY_context_update(bContext *C)
   BPY_modules_update();
 }
 
-void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
+/**
+ * Wrap `bpy_context_set` & `bpy_context_set_allow_null`.
+ *
+ * \param allow_null_context: Ideally we would phase this out,
+ * however some code uses a null context, see: `bpy_context_set_allow_null` docstring for details.
+ */
+static bool bpy_context_set_ex(bContext *C,
+                               PyGILState_STATE *gilstate,
+                               const bool allow_null_context)
 {
+  bool context_set = false;
   py_call_level++;
 
   if (gilstate) {
@@ -127,11 +140,13 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
   }
 
   if (py_call_level == 1) {
-    BPY_context_update(C);
+    if (!allow_null_context) {
+      BLI_assert_msg(C != nullptr, "bpy: Trying to set invalid nullptr context");
+    }
 
-    /* In rare situations, a nullptr context may be set. Such as when executing a XR surface region
-     * draw callback, which doesn't provide a valid context. Prevent calling #pyrna_context_init
-     * which would dereference the context to initialize flags. */
+    BPY_context_update(C);
+    context_set = true;
+
     if (C != nullptr) {
       pyrna_context_init(C);
     }
@@ -147,6 +162,18 @@ void bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
     bpy_timer_count++;
 #endif
   }
+
+  return context_set;
+}
+
+bool bpy_context_set(bContext *C, PyGILState_STATE *gilstate)
+{
+  return bpy_context_set_ex(C, gilstate, false);
+}
+
+bool bpy_context_set_allow_null(bContext *C, PyGILState_STATE *gilstate)
+{
+  return bpy_context_set_ex(C, gilstate, true);
 }
 
 void bpy_context_clear(bContext *C, const PyGILState_STATE *gilstate)
@@ -167,7 +194,7 @@ void bpy_context_clear(bContext *C, const PyGILState_STATE *gilstate)
     BPY_context_set(nullptr);
 #endif
 
-    /* See previous comment regarding nullptr check in #bpy_context_set. */
+    /* See previous comment regarding null check in #bpy_context_set. */
     if (C != nullptr) {
       pyrna_context_clear(C);
     }
@@ -439,6 +466,10 @@ void BPY_python_start(bContext *C, int argc, const char **argv)
      * While harmless, it's noisy. */
     config.pathconfig_warnings = 0;
 
+#  ifdef BLENDER_PYTHON_PLATFORM_HEADER
+    BPY_platform_configure(config);
+#  endif
+
     {
       /* NOTE: running scripts directly uses the default behavior *but* the default
        * warning filter doesn't show warnings form module besides `__main__`.
@@ -500,6 +531,11 @@ void BPY_python_start(bContext *C, int argc, const char **argv)
     /* Setting the program name is important so the 'multiprocessing' module
      * can launch new Python instances. */
     {
+#  ifdef BLENDER_PYTHON_PLATFORM_HEADER
+      status = BPY_platform_configure_executable(config);
+      pystatus_exit_on_error(status);
+      has_python_executable = true;
+#  else
       char program_path[FILE_MAX];
       if (BKE_appdir_program_python_search(
               program_path, sizeof(program_path), PY_MAJOR_VERSION, PY_MINOR_VERSION))
@@ -514,6 +550,7 @@ void BPY_python_start(bContext *C, int argc, const char **argv)
                 "Unable to find the Python binary, "
                 "the multiprocessing module may not be functional!\n");
       }
+#  endif
     }
 
     /* Allow to use our own included Python. `py_path_bundle` may be nullptr. */
@@ -618,6 +655,10 @@ void BPY_python_start(bContext *C, int argc, const char **argv)
   pyrna_alloc_types();
 
 #ifndef WITH_PYTHON_MODULE
+#  ifdef BLENDER_PYTHON_PLATFORM_HEADER
+  BPY_platform_import_smoke();
+#  endif
+
   /* Python module runs `atexit` when `bpy` is freed. */
   BPY_atexit_register(); /* This can initialize any time. */
 

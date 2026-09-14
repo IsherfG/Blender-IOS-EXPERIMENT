@@ -44,13 +44,6 @@ else()
   )
 endif()
 
-if(WITH_APPLE_CROSSPLATFORM)
-  set(FFI_EXTRA_ARGS
-    ${FFI_EXTRA_ARGS}
-    --host=aarch64
-  )
-endif()
-
 ExternalProject_Add(external_ffi
   URL file://${PACKAGE_DIR}/${FFI_FILE}
   URL_HASH ${FFI_HASH_TYPE}=${FFI_HASH}
@@ -59,7 +52,7 @@ ExternalProject_Add(external_ffi
 
   CONFIGURE_COMMAND ${CONFIGURE_ENV_FFI} &&
     cd ${BUILD_DIR}/ffi/src/external_ffi/ &&
-      ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/ffi
+    ${CONFIGURE_COMMAND} --prefix=${LIBDIR}/ffi
       --libdir=${LIBDIR}/ffi/lib/
       ${FFI_EXTRA_ARGS}
 
@@ -70,14 +63,6 @@ ExternalProject_Add(external_ffi
   INSTALL_COMMAND ${CONFIGURE_ENV} &&
     cd ${BUILD_DIR}/ffi/src/external_ffi/ &&
     ${FFI_INSTALL}
-
-  PATCH_COMMAND
-    ${PATCH_CMD} -p 0 -d
-      ${BUILD_DIR}/ffi/src/external_ffi <
-      ${PATCH_DIR}/ffi.diff &&
-    ${PATCH_CMD} -p 1 -d
-      ${BUILD_DIR}/ffi/src/external_ffi <
-      ${PATCH_DIR}/ffi_apple_clang_17.diff
 
   INSTALL_DIR ${LIBDIR}/ffi
 )
@@ -112,9 +97,4 @@ elseif(WIN32)
       ${LIBDIR}/ffi/${FFI_PYTHON_TARGET_ARCH}/include/fficonfig.h
     DEPENDEES install
   )
-endif()
-
-if(WITH_APPLE_CROSSPLATFORM)
-  # Required to provide libs for IOS_PYTHON_STATIC_LIBS
-  harvest_rpath_lib(external_ffi ffi/lib ffi/lib "*.a")
 endif()

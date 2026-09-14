@@ -39,6 +39,8 @@
 #include "BKE_screen.hh"
 #include "BKE_workspace.hh"
 
+#include "PRF_profile.hh"
+
 #include "WM_api.hh"
 #include "WM_keymap.hh"
 #include "WM_message.hh"
@@ -185,7 +187,7 @@ static void window_manager_blend_read_data(BlendDataReader *reader, ID *id)
 
     /* Multi-view always falls back to anaglyph at file opening
      * otherwise quad-buffer saved files can break Blender. */
-    if (win.stereo3d_format) {
+    if (win.stereo3d_format && win.stereo3d_format->display_mode == S3D_DISPLAY_PAGEFLIP) {
       win.stereo3d_format->display_mode = S3D_DISPLAY_ANAGLYPH;
     }
     win.runtime = MEM_new<bke::WindowRuntime>(__func__);
@@ -195,7 +197,7 @@ static void window_manager_blend_read_data(BlendDataReader *reader, ID *id)
 
   wm->xr.runtime = nullptr;
 
-  wm->init_flag = 0;
+  wm->init_flag = eWM_InitFlag{};
   wm->op_undo_depth = 0;
   wm->extensions_updates = WM_EXTENSIONS_UPDATE_UNSET;
   wm->extensions_blocked = 0;
@@ -216,35 +218,35 @@ static void window_manager_blend_read_after_liblink(BlendLibReader *reader, ID *
 }
 
 IDTypeInfo IDType_ID_WM = {
-    /*id_code*/ wmWindowManager::id_type,
-    /*id_filter*/ FILTER_ID_WM,
-    /*dependencies_id_types*/ FILTER_ID_SCE | FILTER_ID_WS,
-    /*main_listbase_index*/ INDEX_ID_WM,
-    /*struct_size*/ sizeof(wmWindowManager),
-    /*name*/ "WindowManager",
-    /*name_plural*/ N_("window_managers"),
-    /*translation_context*/ BLT_I18NCONTEXT_ID_WINDOWMANAGER,
-    /*flags*/ IDTYPE_FLAGS_NO_COPY | IDTYPE_FLAGS_NO_LIBLINKING | IDTYPE_FLAGS_NO_ANIMDATA |
-        IDTYPE_FLAGS_NO_MEMFILE_UNDO | IDTYPE_FLAGS_NEVER_UNUSED,
-    /*asset_type_info*/ nullptr,
+    .id_code = wmWindowManager::id_type,
+    .id_filter = FILTER_ID_WM,
+    .dependencies_id_types = FILTER_ID_SCE | FILTER_ID_WS,
+    .main_listbase_index = INDEX_ID_WM,
+    .struct_size = sizeof(wmWindowManager),
+    .name = "WindowManager",
+    .name_plural = N_("window_managers"),
+    .translation_context = BLT_I18NCONTEXT_ID_WINDOWMANAGER,
+    .flags = IDTYPE_FLAGS_NO_COPY | IDTYPE_FLAGS_NO_LIBLINKING | IDTYPE_FLAGS_NO_ANIMDATA |
+             IDTYPE_FLAGS_NO_MEMFILE_UNDO | IDTYPE_FLAGS_NEVER_UNUSED,
+    .asset_type_info = nullptr,
 
-    /*init_data*/ nullptr,
-    /*copy_data*/ nullptr,
-    /*free_data*/ window_manager_free_data,
-    /*make_local*/ nullptr,
-    /*foreach_id*/ window_manager_foreach_id,
-    /*foreach_cache*/ nullptr,
-    /*foreach_path*/ nullptr,
-    /*foreach_working_space_color*/ nullptr,
-    /*owner_pointer_get*/ nullptr,
+    .init_data = nullptr,
+    .copy_data = nullptr,
+    .free_data = window_manager_free_data,
+    .make_local = nullptr,
+    .foreach_id = window_manager_foreach_id,
+    .foreach_cache = nullptr,
+    .foreach_path = nullptr,
+    .foreach_working_space_color = nullptr,
+    .owner_pointer_get = nullptr,
 
-    /*blend_write*/ window_manager_blend_write,
-    /*blend_read_data*/ window_manager_blend_read_data,
-    /*blend_read_after_liblink*/ window_manager_blend_read_after_liblink,
+    .blend_write = window_manager_blend_write,
+    .blend_read_data = window_manager_blend_read_data,
+    .blend_read_after_liblink = window_manager_blend_read_after_liblink,
 
-    /*blend_read_undo_preserve*/ nullptr,
+    .blend_read_undo_preserve = nullptr,
 
-    /*lib_override_apply_post*/ nullptr,
+    .lib_override_apply_post = nullptr,
 };
 
 #define MAX_OP_REGISTERED 32
@@ -361,8 +363,8 @@ void WM_operator_stack_clear(wmWindowManager *wm, const Set<wmOperatorType *> &t
   bool any_removed = false;
   for (wmOperator &op : wm->runtime->operators.items_mutable()) {
     if (types.contains(op.type)) {
-      WM_operator_free(&op);
       BLI_remlink(&wm->runtime->operators, &op);
+      WM_operator_free(&op);
       any_removed = true;
     }
   }
@@ -476,7 +478,7 @@ void WM_check(bContext *C)
     CTX_wm_manager_set(C, wm);
   }
 
-  if (wm == nullptr || BLI_listbase_is_empty(&wm->windows)) {
+  if (wm == nullptr || wm->windows.is_empty()) {
     return;
   }
 
@@ -514,7 +516,7 @@ void wm_clear_default_size(bContext *C)
     CTX_wm_manager_set(C, wm);
   }
 
-  if (wm == nullptr || BLI_listbase_is_empty(&wm->windows)) {
+  if (wm == nullptr || wm->windows.is_empty()) {
     return;
   }
 
@@ -602,6 +604,8 @@ void WM_main_entry(bContext *C)
 
 void WM_main_loop_body(bContext *C)
 {
+  PRF_scope(ProfileCategory::Core);
+
   /* Get events from ghost, handle window events, add to window queues. */
   wm_window_events_process(C);
 
@@ -613,11 +617,14 @@ void WM_main_loop_body(bContext *C)
 
   /* Execute cached changes draw. */
   wm_draw_update(C);
+
+  PRF_frame_mark;
 }
 
 void WM_main(bContext *C)
 {
   WM_main_entry(C);
+
   while (true) {
     WM_main_loop_body(C);
   }

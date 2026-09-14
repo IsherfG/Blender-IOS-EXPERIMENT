@@ -11,6 +11,7 @@
 #include "DNA_scene_types.h"
 #include "DNA_windowmanager_types.h"
 
+#include "BLI_path_utils.hh"
 #include "BLI_string_utf8_symbols.h"
 
 #include "BLT_translation.hh"
@@ -22,6 +23,7 @@
 
 #include "rna_internal.hh"
 
+#include "UI_interface_c.hh"
 #include "UI_interface_layout.hh"
 
 #include "WM_api.hh"
@@ -197,17 +199,7 @@ static const EnumPropertyItem event_ndof_type_items[] = {
 #  endif
     {0, nullptr, 0, nullptr, nullptr},
 };
-static const EnumPropertyItem event_touch_type_items[] = {
-    {TOUCH_EDGE_SWIPE_IN_LEFT, "TOUCH_EDGE_SWIPE_IN_LEFT", 0, "Edge Swap In Left"},
-    {TOUCH_EDGE_SWIPE_IN_RIGHT, "TOUCH_EDGE_SWIPE_IN_RIGHT", 0, "Edge Swap In Right"},
-    {TOUCH_TWO_FINGER_TAP, "TOUCH_TWO_FINGER_TAP", 0, "2 Fingers Tap", ""},
-    {TOUCH_THREE_FINGER_TAP, "TOUCH_THREE_FINGER_TAP", 0, "3 Fingers Tap", ""},
-    {TOUCH_FOUR_FINGER_TAP, "TOUCH_FOUR_FINGER_TAP", 0, "4 Fingers Tap", ""},
-    {0, nullptr, 0, nullptr, nullptr},
-};
-
 }  // namespace blender
-
 #endif /* RNA_RUNTIME */
 
 namespace blender {
@@ -470,12 +462,6 @@ const EnumPropertyItem rna_enum_event_type_items[] = {
     {NDOF_BUTTON_10, "NDOF_BUTTON_10", 0, "NDOF Button 10", "NdofB10"},
     {NDOF_BUTTON_11, "NDOF_BUTTON_11", 0, "NDOF Button 11", "NdofB11"},
     {NDOF_BUTTON_12, "NDOF_BUTTON_12", 0, "NDOF Button 12", "NdofB12"},
-    /* Touch events. */
-    {TOUCH_EDGE_SWIPE_IN_LEFT, "TOUCH_EDGE_SWIPE_IN_LEFT", 0, "Swap |→   |"},
-    {TOUCH_EDGE_SWIPE_IN_RIGHT, "TOUCH_EDGE_SWIPE_IN_RIGHT", 0, "Swap |   ←|"},
-    {TOUCH_TWO_FINGER_TAP, "TOUCH_TWO_FINGER_TAP", 0, "2 Fingers Tap"},
-    {TOUCH_THREE_FINGER_TAP, "TOUCH_THREE_FINGER_TAP", 0, "3 Fingers Tap"},
-    {TOUCH_FOUR_FINGER_TAP, "TOUCH_FOUR_FINGER_TAP", 0, "4 Fingers Tap"},
 
     /* Action Zones. */
     {EVT_ACTIONZONE_AREA, "ACTIONZONE_AREA", 0, "ActionZone Area", "AZone Area"},
@@ -657,16 +643,22 @@ const EnumPropertyItem rna_enum_wm_report_items[] = {
 
 #  include "BLI_string_utils.hh"
 
-#  include "BKE_global.hh"
-
-#  include "UI_interface_c.hh"
-
 #  include "WM_api.hh"
 
 #  include "DNA_ID.h"
 #  include "DNA_workspace_types.h"
 
+#  include "BKE_global.hh"
+
+#  include "ED_screen.hh"
+
+#  include "UI_interface.hh"
+
 #  include "MEM_guardedalloc.h"
+
+#  ifdef WITH_PYTHON
+#    include "BPY_extern.hh"
+#  endif
 
 namespace blender {
 
@@ -946,10 +938,22 @@ static void rna_Window_scene_update(bContext *C, PointerRNA *ptr)
 
   /* Exception: must use context so notifier gets to the right window. */
   if (win->new_scene) {
+#  ifdef WITH_PYTHON
+    BPy_BEGIN_ALLOW_THREADS;
+#  endif
+
     WM_window_set_active_scene(bmain, C, win, win->new_scene);
+
+#  ifdef WITH_PYTHON
+    BPy_END_ALLOW_THREADS;
+#  endif
 
     wmWindowManager *wm = CTX_wm_manager(C);
     WM_event_add_notifier_ex(wm, win, NC_SCENE | ND_SCENEBROWSE, win->new_scene);
+
+    if (G.debug & G_DEBUG) {
+      printf("scene set %p\n", win->new_scene);
+    }
 
     win->new_scene = nullptr;
   }
@@ -1147,10 +1151,6 @@ static void rna_wmKeyMapItem_map_type_set(PointerRNA *ptr, int value)
         kmi->type = NDOF_MOTION;
         kmi->val = KM_NOTHING;
         break;
-      case KMI_TYPE_TOUCH:
-        kmi->type = TOUCH_TWO_FINGER_TAP;
-        kmi->val = KM_NOTHING;
-        break;
     }
   }
 }
@@ -1192,9 +1192,6 @@ static const EnumPropertyItem *rna_KeyMapItem_type_itemf(bContext * /*C*/,
   }
   if (map_type == KMI_TYPE_NDOF) {
     return event_ndof_type_items;
-  }
-  if (map_type == KMI_TYPE_TOUCH) {
-    return event_touch_type_items;
   }
   if (map_type == KMI_TYPE_TEXTINPUT) {
     return event_textinput_type_items;
@@ -1367,7 +1364,7 @@ static IDProperty **rna_wmKeyConfigPref_idprops(PointerRNA *ptr)
   return reinterpret_cast<IDProperty **>(&ptr->data);
 }
 
-static bool rna_wmKeyConfigPref_unregister(Main * /*bmain*/, StructRNA *type)
+static bool rna_wmKeyConfigPref_unregister(Main *bmain, StructRNA *type)
 {
   wmKeyConfigPrefType_Runtime *kpt_rt = static_cast<wmKeyConfigPrefType_Runtime *>(
       RNA_struct_blender_type_get(type));
@@ -1375,7 +1372,7 @@ static bool rna_wmKeyConfigPref_unregister(Main * /*bmain*/, StructRNA *type)
   if (!kpt_rt) {
     return false;
   }
-
+  ui::refresh_for_srna_unregister(bmain, type);
   RNA_struct_free_extension(type, &kpt_rt->rna_ext);
   RNA_struct_free(&RNA_blender_rna_get(), type);
 
@@ -1528,10 +1525,46 @@ static void rna_WindowManager_operators_begin(CollectionPropertyIterator *iter, 
   rna_iterator_listbase_begin(iter, ptr, &wm->runtime->operators, nullptr);
 }
 
+static void rna_WindowManager_reports_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
+{
+  wmWindowManager *wm = static_cast<wmWindowManager *>(ptr->data);
+  rna_iterator_listbase_begin(iter, ptr, &wm->runtime->reports.list, nullptr);
+}
+
+static int rna_Report_session_uid_get(PointerRNA *ptr)
+{
+  const Report *report = static_cast<const Report *>(ptr->data);
+  return report->session_uid;
+}
+
+static int rna_Report_type_get(PointerRNA *ptr)
+{
+  const Report *report = static_cast<const Report *>(ptr->data);
+  return report->type;
+}
+
+static void rna_Report_message_get(PointerRNA *ptr, char *value)
+{
+  const Report *report = static_cast<const Report *>(ptr->data);
+  strcpy(value, report->message);
+}
+
+static int rna_Report_message_length(PointerRNA *ptr)
+{
+  const Report *report = static_cast<const Report *>(ptr->data);
+  return report->len;
+}
+
 static void rna_WindowManager_keyconfigs_begin(CollectionPropertyIterator *iter, PointerRNA *ptr)
 {
   wmWindowManager *wm = static_cast<wmWindowManager *>(ptr->data);
   rna_iterator_listbase_begin(iter, ptr, &wm->runtime->keyconfigs, nullptr);
+}
+
+static bool rna_WindowManager_is_event_handling_break_get(PointerRNA *ptr)
+{
+  wmWindowManager *wm = static_cast<wmWindowManager *>(ptr->data);
+  return wm->runtime->break_events_handling;
 }
 
 static PointerRNA rna_WindowManager_xr_session_state_get(PointerRNA *ptr)
@@ -1906,7 +1939,8 @@ static bool rna_Operator_unregister(Main *bmain, StructRNA *type)
   if (!ot) {
     return false;
   }
-
+  ui::refresh_for_srna_unregister(bmain, ot->srna);
+  ui::refresh_for_srna_unregister(bmain, type);
   /* update while blender is running */
   wm = static_cast<wmWindowManager *>(bmain->wm.first);
   if (wm) {
@@ -2401,6 +2435,7 @@ static void rna_def_operator_filelist_element(BlenderRNA *brna)
   RNA_def_struct_ui_text(srna, "Operator File List Element", "");
 
   prop = RNA_def_property(srna, "name", PROP_STRING, PROP_FILENAME);
+  RNA_def_property_string_maxlength(prop, FILE_MAX);
   RNA_def_property_flag(prop, PROP_IDPROPERTY);
   RNA_def_property_ui_text(prop, "Name", "Name of a file or directory within a file list");
 }
@@ -2898,6 +2933,33 @@ static void rna_def_wm_keyconfigs(BlenderRNA *brna, PropertyRNA *cprop)
   RNA_api_keyconfigs(srna);
 }
 
+static void rna_def_report(BlenderRNA *brna)
+{
+  StructRNA *srna;
+  PropertyRNA *prop;
+
+  srna = RNA_def_struct(brna, "Report", nullptr);
+  RNA_def_struct_sdna(srna, "Report");
+  RNA_def_struct_ui_text(srna, "Report", "Report entry");
+
+  prop = RNA_def_property(srna, "session_uid", PROP_INT, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_int_funcs(prop, "rna_Report_session_uid_get", nullptr, nullptr);
+  RNA_def_property_ui_text(prop, "Session UID", "Unique per-session report identifier");
+
+  prop = RNA_def_property(srna, "type", PROP_ENUM, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_enum_items(prop, rna_enum_wm_report_items);
+  RNA_def_property_enum_funcs(prop, "rna_Report_type_get", nullptr, nullptr);
+  RNA_def_property_ui_text(prop, "Type", "Report type (severity)");
+
+  prop = RNA_def_property(srna, "message", PROP_STRING, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_string_funcs(
+      prop, "rna_Report_message_get", "rna_Report_message_length", nullptr);
+  RNA_def_property_ui_text(prop, "Message", "Report message text");
+}
+
 static void rna_def_windowmanager(BlenderRNA *brna)
 {
   StructRNA *srna;
@@ -2923,6 +2985,19 @@ static void rna_def_windowmanager(BlenderRNA *brna)
                                     nullptr,
                                     nullptr);
   RNA_def_property_ui_text(prop, "Operators", "Operator registry");
+
+  prop = RNA_def_property(srna, "reports", PROP_COLLECTION, PROP_NONE);
+  RNA_def_property_struct_type(prop, "Report");
+  RNA_def_property_collection_funcs(prop,
+                                    "rna_WindowManager_reports_begin",
+                                    "rna_iterator_listbase_next",
+                                    "rna_iterator_listbase_end",
+                                    "rna_iterator_listbase_get",
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr);
+  RNA_def_property_ui_text(prop, "Reports", "Collection of reports");
 
   prop = RNA_def_property(srna, "windows", PROP_COLLECTION, PROP_NONE);
   RNA_def_property_struct_type(prop, "Window");
@@ -2966,7 +3041,16 @@ static void rna_def_windowmanager(BlenderRNA *brna)
       prop, "Extensions Blocked", "Number of installed extensions which are blocked");
   RNA_def_property_update(prop, 0, "rna_WindowManager_extensions_statusbar_update");
 
+  prop = RNA_def_property(srna, "is_event_handling_break", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+  RNA_def_property_boolean_funcs(prop, "rna_WindowManager_is_event_handling_break_get", nullptr);
+  RNA_def_property_ui_text(
+      prop,
+      "Event Handling Break",
+      "Remaining events in the queue are delayed until the next main loop iteration");
+
   RNA_api_wm(srna);
+  RNA_api_asset_library_loading_status(srna);
 }
 
 /* keyconfig.items */
@@ -3025,7 +3109,6 @@ static void rna_def_keyconfig(BlenderRNA *brna)
   static const EnumPropertyItem map_type_items[] = {
       {KMI_TYPE_KEYBOARD, "KEYBOARD", 0, "Keyboard", ""},
       {KMI_TYPE_MOUSE, "MOUSE", 0, "Mouse", ""},
-      {KMI_TYPE_TOUCH, "TOUCH", 0, "Touch", ""},
       {KMI_TYPE_NDOF, "NDOF", 0, "NDOF", ""},
       {KMI_TYPE_TEXTINPUT, "TEXTINPUT", 0, "Text Input", ""},
       {KMI_TYPE_TIMER, "TIMER", 0, "Timer", ""},
@@ -3350,6 +3433,7 @@ void RNA_def_wm(BlenderRNA *brna)
   rna_def_popovermenu(brna);
   rna_def_piemenu(brna);
   rna_def_window(brna);
+  rna_def_report(brna);
   rna_def_windowmanager(brna);
   rna_def_keyconfig_prefs(brna);
   rna_def_keyconfig(brna);

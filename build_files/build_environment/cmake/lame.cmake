@@ -24,20 +24,13 @@ if(MSVC)
       ${LIBDIR}/lame/lib/mp3lame.lib
   )
 else()
-  if(WITH_APPLE_CROSSPLATFORM)
-    # Building for non-local architecture.
-    set(CROSS_COMPILE_FLAGS "--host=arm")
-  else()
-    set(CROSS_COMPILE_FLAGS)
-  endif()
-
-  set(LAME_CONFIGURE 
-    ${CONFIGURE_ENV} && 
-    cd ${BUILD_DIR}/lame/src/external_lame/ && 
-    ${CONFIGURE_COMMAND} 
-      --prefix=${LIBDIR}/lame 
-      --disable-shared 
-      --enable-static 
+  set(LAME_CONFIGURE
+    ${CONFIGURE_ENV} &&
+    cd ${BUILD_DIR}/lame/src/external_lame/ &&
+    ${CONFIGURE_COMMAND}
+      --prefix=${LIBDIR}/lame
+      --disable-shared
+      --enable-static
       ${LAME_EXTRA_ARGS}
       --enable-export=full
       --with-fileio=sndfile
@@ -46,8 +39,7 @@ else()
       --disable-mp3x
       --disable-mp3rtp
       --disable-gtktest
-      --disable-frontend
-      ${CROSS_COMPILE_FLAGS})
+      --disable-frontend)
   set(LAME_BUILD ${CONFIGURE_ENV} &&
     cd ${BUILD_DIR}/lame/src/external_lame/ &&
     make -j${MAKE_THREADS}

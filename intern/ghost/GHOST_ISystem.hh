@@ -61,7 +61,7 @@ class GHOST_IEventConsumer;
  * - Microsoft Windows.
  * - X11 (Linux).
  * - Wayland (Linux).
- * - SDL2.
+ * - SDL3.
  * - null (headless mode).
  *
  * \section Building GHOST
@@ -453,17 +453,19 @@ class GHOST_ISystem {
    */
   virtual void putClipboard(const char *buffer, bool selection) const = 0;
 
-#if (WITH_APPLE_CROSSPLATFORM)
   virtual GHOST_TSuccess popupOnScreenKeyboard(
-      GHOST_IWindow *window, const GHOST_KeyboardProperties &keyboard_properties) = 0;
-
-  virtual GHOST_TSuccess hideOnScreenKeyboard(GHOST_IWindow *window) = 0;
-
-  virtual const char *getKeyboardInput(GHOST_IWindow *window) = 0;
-
-  virtual GHOST_TSuccess startSecurityScopedFileAccess(const char *filepath) = 0;
-  virtual GHOST_TSuccess stopSecurityScopedFileAccess(const char *filepath) = 0;
-#endif
+      GHOST_IWindow * /*window*/, const GHOST_KeyboardProperties & /*keyboard_properties*/)
+  {
+    return GHOST_kFailure;
+  }
+  virtual GHOST_TSuccess hideOnScreenKeyboard(GHOST_IWindow * /*window*/)
+  {
+    return GHOST_kFailure;
+  }
+  virtual const char *getKeyboardInput(GHOST_IWindow * /*window*/)
+  {
+    return nullptr;
+  }
 
   /**
    * Returns GHOST_kSuccess if the clipboard contains an image.
@@ -492,6 +494,17 @@ class GHOST_ISystem {
 
   virtual void setWindowCSD(const GHOST_CSD_Params &params) = 0;
   virtual const GHOST_CSD_Layout &getWindowCSD_Layout() const = 0;
+
+  /***************************************************************************************
+   * Window Icon Generator.
+   ***************************************************************************************/
+
+  /**
+   * Set a callback used to generate window icons.
+   *
+   * Back-ends that support window icons will call this to fill pixel data.
+   */
+  virtual void setIconGenerator(const GHOST_IconGenerator *icon_generator) = 0;
 
   /***************************************************************************************
    * System Message Box.

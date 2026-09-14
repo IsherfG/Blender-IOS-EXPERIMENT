@@ -369,13 +369,6 @@ static wmOperatorStatus viewrotate_invoke_impl(bContext *C,
 
 static wmOperatorStatus viewrotate_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
-#ifdef WITH_APPLE_CROSSPLATFORM
-  /* Only scroll view with multiple fingers on iOS. */
-  if (!(event->flag & WM_EVENT_MULTITOUCH_TWO_FINGERS)) {
-    return OPERATOR_FINISHED;
-  }
-#endif
-
   return view3d_navigate_invoke_impl(C, op, event, &ViewOpsType_rotate);
 }
 

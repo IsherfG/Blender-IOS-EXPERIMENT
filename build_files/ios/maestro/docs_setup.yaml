@@ -1,0 +1,8 @@
+appId: org.blenderfoundation.blender.ios
+name: Blender iOS documentation setup
+---
+- tapOn:
+    point: 50%,66%
+- waitForAnimationToEnd:
+    timeout: 15000
+- takeScreenshot: docs-blender-ipad

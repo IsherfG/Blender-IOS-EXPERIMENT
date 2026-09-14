@@ -391,7 +391,8 @@ static bool library_foreach_ID_link(Main *bmain,
       CALLBACK_INVOKE_ID(id->override_library->reference,
                          IDWALK_CB_USER | IDWALK_CB_OVERRIDE_LIBRARY_REFERENCE);
 
-      CALLBACK_INVOKE_ID(id->override_library->hierarchy_root, IDWALK_CB_LOOPBACK);
+      CALLBACK_INVOKE_ID(id->override_library->hierarchy_root,
+                         IDWALK_CB_LOOPBACK | IDWALK_CB_OVERRIDE_LIBRARY_HIERARCHY_ROOT);
       for (IDOverrideLibraryProperty &op : id->override_library->properties) {
         for (IDOverrideLibraryPropertyOperation &opop : op.operations) {
           CALLBACK_INVOKE_ID(opop.subitem_reference_id,
@@ -759,7 +760,7 @@ class UnusedIDsData {
   }
 
   /** Define the current status of the given ID. */
-  void set_id_status(ID &id, const Status status)
+  void set_id_status(ID &id, Status status)
   {
     if (id.flag & ID_FLAG_EMBEDDED_DATA) {
       /* Nothing to do for embedded IDs, these may have to be processed in dependency chains, but
@@ -771,8 +772,10 @@ class UnusedIDsData {
       return;
     }
 
+    /* If the generic code has decided that this ID was unused, but the special filter callback
+     * says otherwise, then the final status of this ID must be forced to 'used'. */
     if (status == Status::Unused && this->filter_fn && !this->filter_fn(&id)) {
-      return;
+      status = Status::Used;
     }
 
     ids_status_.add_overwrite(&id, status);

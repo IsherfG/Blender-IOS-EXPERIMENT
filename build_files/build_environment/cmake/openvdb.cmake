@@ -45,38 +45,13 @@ set(OPENVDB_EXTRA_ARGS
   # -DLLVM_DIR=${LIBDIR}/llvm/lib/cmake/llvm
 )
 
-if(WITH_APPLE_CROSSPLATFORM) 
-  # IOS_FIXME: Think we can remove this now Boost has been removed
-  file(GLOB Boost_LIBRARIES
-    "${LIBDIR}/boost/lib/*.dylib"
-  )
-
-  set(OPENVDB_EXTRA_ARGS
-    ${OPENVDB_EXTRA_ARGS}
-    #-DCMAKE_POLICY_DEFAULT_CMP0144:STRING=NEW 
-    # TEMP: Disable python module as library discovery fails.
-    -DOPENVDB_BUILD_PYTHON_MODULE=OFF
-
-    # Boost
-    -DBoost_ROOT=${LIBDIR}/boost
-    #-DBoost_FOUND=YES
-    #-DBoost_VERSION=${BOOST_VERSION}
-    -DBoost_INCLUDE_DIR=${LIBDIR}/boost/include/
-    #-DBoost_LIBRARIES=${Boost_LIBRARIES}
-    #-DBoost_LIBRARY_DIRS=${LIBDIR}/boost/lib/
-    -DBoost_DEBUG=ON
-    #-DBoost_LIB_PREFIX=lib
-  )
-endif()
-
-
 set(OPENVDB_PATCH
   ${PATCH_CMD} -p 1 -d
-    ${BUILD_DIR}/openvdb/src/openvdb <
+    ${BUILD_DIR}/openvdb/src/external_openvdb <
     ${PATCH_DIR}/openvdb.diff
 )
 
-ExternalProject_Add(openvdb
+ExternalProject_Add(external_openvdb
   URL file://${PACKAGE_DIR}/${OPENVDB_FILE}
   DOWNLOAD_DIR ${DOWNLOAD_DIR}
   URL_HASH ${OPENVDB_HASH_TYPE}=${OPENVDB_HASH}
@@ -93,7 +68,7 @@ ExternalProject_Add(openvdb
 )
 
 add_dependencies(
-  openvdb
+  external_openvdb
   external_tbb
   external_zlib
   external_blosc
@@ -109,7 +84,7 @@ if(WIN32)
     set(OPENVDB_ARCH amd64)
   endif()
   if(BUILD_MODE STREQUAL Release)
-    ExternalProject_Add_Step(openvdb after_install
+    ExternalProject_Add_Step(external_openvdb after_install
       COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${LIBDIR}/openvdb/include
         ${HARVEST_TARGET}/openvdb/include
@@ -126,7 +101,7 @@ if(WIN32)
     )
   endif()
   if(BUILD_MODE STREQUAL Debug)
-    ExternalProject_Add_Step(openvdb after_install
+    ExternalProject_Add_Step(external_openvdb after_install
       COMMAND ${CMAKE_COMMAND} -E copy
         ${LIBDIR}/openvdb/lib/openvdb_d.lib
         ${HARVEST_TARGET}/openvdb/lib/openvdb_d.lib
@@ -141,11 +116,11 @@ if(WIN32)
     )
   endif()
 else()
-  harvest(openvdb openvdb/include/openvdb openvdb/include/openvdb "*.h")
-  harvest(openvdb openvdb/include/nanovdb openvdb/include/nanovdb "*.h")
-  harvest_rpath_lib(openvdb openvdb/lib openvdb/lib "lib*${SHAREDLIBEXT}*")
+  harvest(external_openvdb openvdb/include/openvdb openvdb/include/openvdb "*.h")
+  harvest(external_openvdb openvdb/include/nanovdb openvdb/include/nanovdb "*.h")
+  harvest_rpath_lib(external_openvdb openvdb/lib openvdb/lib "lib*${SHAREDLIBEXT}*")
   harvest_rpath_python(
-    openvdb
+    external_openvdb
     openvdb/lib/python${PYTHON_SHORT_VERSION}
     python/lib/python${PYTHON_SHORT_VERSION}
     "openvdb*"

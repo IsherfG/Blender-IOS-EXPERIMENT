@@ -13,6 +13,10 @@
 #include "util/types_int4.h"
 #include "util/types_uint4.h"
 
+#if !defined(__KERNEL_GPU__) && defined(__ARM_NEON)
+#  include <arm_neon.h>
+#endif
+
 #if !defined(__KERNEL_GPU__) && defined(__KERNEL_SSE2__)
 #  include "util/optimization.h"  // IWYU pragma: keep
 #  include "util/simd.h"          // IWYU pragma: keep
@@ -280,7 +284,7 @@ ccl_device_inline float3 half3_to_float3(const half3 h)
 #endif
 }
 
-/* For image textutes */
+/* For image textures. */
 ccl_device_inline half float_to_half_image(const float f)
 {
   return float_to_half(clamp(f, -65504.0f, 65504.0f));
@@ -296,7 +300,7 @@ ccl_device_inline float4 half4_to_float4_image(const half4 h)
   return half4_to_float4(h);
 }
 
-/* For render display */
+/* For render display. */
 ccl_device_inline half float_to_half_display(const float f)
 {
   return float_to_half(clamp(f, 0.0f, 65504.0f));

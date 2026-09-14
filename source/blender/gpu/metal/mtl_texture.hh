@@ -14,6 +14,7 @@
 #include "MEM_guardedalloc.h"
 
 #include "gpu_texture_private.hh"
+#include "mtl_common.hh"
 
 #include <mutex>
 #include <string>
@@ -173,13 +174,14 @@ struct MTLSamplerState {
   }
 };
 
-const MTLSamplerState DEFAULT_SAMPLER_STATE = {GPUSamplerState::default_sampler() /*, 0, 9999 */};
+const MTLSamplerState DEFAULT_SAMPLER_STATE = {GPUSamplerState::default_sampler() /* , 0, 9999 */};
 
 class MTLTexture : public Texture {
   friend class MTLContext;
   friend class MTLStateManager;
   friend class MTLFrameBuffer;
   friend class MTLStorageBuf;
+  friend class MTLTexturePool;
 
   /* Special case: The XR blitting function needs access to the Metal blit encoder and handles
    * for directly blitting from an UNORM to an SRGB texture without color space conversion. */
@@ -289,11 +291,11 @@ class MTLTexture : public Texture {
                   GPUPixelBuffer *pixbuf) override;
 
   void generate_mipmap() override;
-  void copy_to(Texture *dst) override;
-  void clear(eGPUDataFormat format, const void *data) override;
+  void copy_to(Texture *dst, IndexRange mip_levels) override;
+  void clear(const double4 data) override;
   void swizzle_set(const char swizzle_mask[4]) override;
   void mip_range_set(int min, int max) override;
-  void *read(int mip, eGPUDataFormat type) override;
+  void read(int mip, eGPUDataFormat type, void *data) override;
 
   bool is_format_srgb();
   bool texture_is_baked();
@@ -666,7 +668,7 @@ inline MTLTextureUsage mtl_usage_from_gpu(eGPUTextureUsage usage)
     mtl_usage = mtl_usage | MTLTextureUsagePixelFormatView;
   }
 #if defined(MAC_OS_VERSION_14_0) || defined(IPHONE_OS_VERSION_17_0)
-  if (@available(macOS 14.0, ios 17.0, *)) {
+  if (@available(macOS 14.0, iOS 17.0, *)) {
     if (usage & GPU_TEXTURE_USAGE_ATOMIC) {
       mtl_usage = mtl_usage | MTLTextureUsageShaderAtomic;
     }
@@ -694,6 +696,16 @@ inline eGPUTextureUsage gpu_usage_from_mtl(MTLTextureUsage mtl_usage)
     usage = usage | GPU_TEXTURE_USAGE_FORMAT_VIEW;
   }
   return usage;
+}
+
+BLI_INLINE MTLTexture *unwrap(Texture *tex)
+{
+  return static_cast<MTLTexture *>(tex);
+}
+
+BLI_INLINE Texture *wrap(MTLTexture *texture)
+{
+  return static_cast<Texture *>(texture);
 }
 
 }  // namespace gpu
