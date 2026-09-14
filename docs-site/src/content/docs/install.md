@@ -1,52 +1,58 @@
 ---
 title: Install Blender
-description: Install the unsigned Blender IPA with SideStore or another signer.
+description: Download Blender and install it with an iOS sideloading tool.
 ---
 
-The release contains an unsigned IPA. Your sideloading tool signs it for your
-device. You do not need Apple's paid developer program.
+Blender requires iOS or iPadOS 18 or newer. The IPA download is about 200 MiB.
 
-Blender requires iOS or iPadOS 18 or newer. The download is about 200 MiB, so
-use a reliable Wi-Fi connection and leave enough free storage for extraction.
+You'll need a sideloading tool to sign the app for your device.
+A free Apple Account can be used for signing; you don't need to join Apple's
+paid developer program. Free signatures expire after 7 days and need refreshing.
 
-## SideStore with a free Apple Account
+Before installing, read [What doesn't work](/blender-ios-build/limitations/),
+especially if you rely on add-ons.
 
-SideStore is the recommended free route. A free Apple Account signs apps for
-7 days at a time. SideStore can refresh them before they expire.
+## SideStore
 
-1. Follow SideStore's official [prerequisites](https://docs.sidestore.io/docs/installation/prerequisites).
-   Install LocalDevVPN, install iLoader on a computer, and connect the device by USB for initial setup.
-2. Follow the official [SideStore installation guide](https://docs.sidestore.io/docs/installation/install).
-   Use your own Apple Account when iLoader asks. Do not send the password to this project.
-3. On the device, trust the developer app under **Settings > General > VPN & Device Management**.
-4. Enable Developer Mode under **Settings > Privacy & Security** if iOS asks for it.
-5. Connect LocalDevVPN whenever you install, update, or refresh an app.
-6. Open this page in Safari on the device and use the button below.
-7. After Blender installs, open SideStore's **My Apps** page and confirm that Blender shows a 7-day expiry. Refresh it once to prove the weekly path.
+SideStore can install apps and refresh their signatures. We haven't yet
+verified Blender's complete install and refresh process through SideStore
+on a physical device.
 
-[Install the latest release in SideStore](sidestore://install?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
+1. Follow SideStore's official [setup requirements](https://docs.sidestore.io/docs/installation/prerequisites)
+   and [installation guide](https://docs.sidestore.io/docs/installation/install).
+   Initial setup needs a computer, a USB connection, and your Apple Account.
+   The guides cover iLoader and LocalDevVPN.
+2. Trust the developer app in **Settings > General > VPN & Device Management**
+   if asked. Enable **Settings > Privacy & Security > Developer Mode** if needed.
+3. Connect LocalDevVPN as described in SideStore's guide.
+4. Open the link below in Safari on your device.
 
-If the button does not open SideStore, download the IPA and choose it from
+[Install Blender with SideStore](sidestore://install?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
+
+If the link doesn't open SideStore, download the IPA and select it from
 SideStore's **My Apps** tab.
+
+After installation, check Blender's expiry in **My Apps**. Try refreshing it
+and make sure the date updates.
 
 [Download Blender-iOS.ipa](https://github.com/Shlok-Bhakta/blender-ios-build/releases/latest/download/Blender-iOS.ipa)
 
 ## Autoloader
 
-Autoloader is another on-device signing route. Open the install link in Safari,
-let Autoloader sign the IPA, then finish under **Settings > Installation**.
+Open the link in Safari on your device. Let Autoloader sign the app, then finish
+the installation under **Settings > Installation**.
 
-[Install the latest release with Autoloader](https://marginally-better-apps.github.io/Autoloader/?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
+[Install Blender with Autoloader](https://marginally-better-apps.github.io/Autoloader/?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
 
-## Other sideloaders
+## Other sideloading tools
 
-AltStore and other IPA signers may work, but they are not part of this release's
-validation matrix. Give the tool the unmodified `Blender-iOS.ipa`. Do not unpack
-and rebuild it. The app contains many embedded frameworks that the signer must
-sign.
+We haven't verified AltStore or other IPA signers for this release.
+If you try one, give it the original `Blender-iOS.ipa` file. Leave the IPA
+packaged as downloaded so the tool can sign the app and its bundled libraries.
 
 ## First launch
 
-The initial launch can take longer while iOS verifies the app and Blender loads
-its startup data. Start with the default scene. Move the cube, save a `.blend`,
-close the app, reopen it, and load that file before committing serious work.
+The first launch may take a little longer. Once Blender opens, try moving the
+startup cube, saving the project, and reopening it.
+
+Keep a copy of your projects outside the app before replacing an installation.

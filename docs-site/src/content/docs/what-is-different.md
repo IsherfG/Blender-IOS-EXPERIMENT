@@ -1,34 +1,45 @@
 ---
-title: What is different from desktop Blender
-description: iOS-specific behavior in this Blender 5.2 port.
+title: What's different on iOS
+description: The changes you'll notice when coming from desktop Blender.
 ---
 
-The user interface and project format come from Blender 5.2.1. Most Blender
-documentation applies unchanged. The port adds the following iOS behavior.
+The interface and project format come from Blender 5.2.1. Your usual Blender
+knowledge still applies, but input and file access work differently here.
 
-## Input
+## Your finger moves a cursor
 
-- A shared virtual cursor lets touch act like a relative trackpad.
-- The cursor accelerates and wraps across all four window edges.
-- Touch gestures expose left drag, right mouse, double-click, Undo, Redo, search,
-  3D orbit and pan, and 2D editor navigation.
-- Native text entry accepts full expressions and preserves Done or Cancel behavior.
-- Hardware mouse, trackpad, keyboard, and Apple Pencil feed Blender's normal input events.
+Dragging a finger moves the cursor like a trackpad. A tap clicks wherever that
+cursor is. The cursor wraps around the screen edges so you can keep moving
+during a long drag.
 
-## Platform integration
+Gestures give you orbit, pan, zoom, right click, Undo, Redo, and Search.
+The [touch guide](/blender-ios-build/controls/touch/) lists them all.
 
-- UIKit owns app and window lifecycle while Blender advances its normal event loop.
-- MetalKit supplies the drawable size and presentation timing.
-- Blender child windows have an iOS close control and `Command-W` shortcut.
-- The Files picker grants external folders and restores security-scoped bookmarks.
-- `.blend` documents can arrive through the iOS document-opening path.
+## You can use the iOS keyboard or your own
 
-## Runtime and rendering
+Tap into a field to edit it with the iOS keyboard. Expressions such as `3+4`
+work in numeric fields.
 
-- The app bundles CPython 3.13, NumPy, and zstandard in signable frameworks.
-- Extensions download work moves to an in-process thread because iOS forbids child processes.
-- Workbench and EEVEE use Metal.
-- Cycles CPU is included. Cycles Metal is available only when the physical GPU meets its resource requirements.
-- The release IPA contains both iPhone and iPad device families and no developer signature.
+A hardware keyboard, mouse, or trackpad gives you more familiar desktop
+controls. Pencil supports pressure, tilt, and hover where the device provides
+it. See [keyboard, mouse, and Pencil](/blender-ios-build/controls/keyboard-mouse-pencil/).
 
-For standard tools, use the [Blender 5.2 Manual](https://docs.blender.org/manual/en/5.2/).
+## Folders need permission
+
+Open projects through Files or Blender's file browser. For a folder outside
+Blender's own storage, use the folder-plus button to grant access. Blender
+remembers that folder for later.
+
+The file browser and other separate windows have a close button at the top
+right. `Command-W` works too.
+See [files and windows](/blender-ios-build/workflow/files-and-windows/).
+
+## Some desktop workflows won't carry over
+
+Blender includes Python, but add-ons that need desktop libraries or helper
+programs won't work unchanged. The Extensions installer also has a blocker.
+OSL, Hydra rendering, VR, and SpaceMouse support aren't available.
+
+Read [What doesn't work](/blender-ios-build/limitations/) for those limits.
+For Blender's ordinary tools, use the
+[Blender Manual](https://docs.blender.org/manual/en/5.2/).

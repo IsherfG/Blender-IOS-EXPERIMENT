@@ -1,40 +1,40 @@
 ---
 title: Files and windows
-description: Open, save, and grant folders through the iOS Files app.
+description: Open projects, add folders, and close Blender windows.
 ---
 
-## App storage
+## Where your files live
 
-Blender can read and write its app container normally. Enable **On My iPhone**
-or **On My iPad** in Files to browse local documents. Keep a second copy of
-important projects outside the app container before replacing or deleting a
-sideloaded build.
+Look under **On My iPhone** or **On My iPad** in the Files app for Blender's
+local documents. Files kept inside the app can be lost when you delete it.
+Keep another copy of important projects before replacing a sideloaded build.
 
-## Open a `.blend` document
+## Open a project
 
-Open a `.blend` from Files and choose Blender in the share or Open In sheet.
-iOS routes the security-scoped document to the running Blender session. You can
-also use Blender's normal **File > Open** command.
+In Files, select a `.blend` file and choose Blender from the share or Open In
+menu. You can also use **File > Open** inside Blender.
 
 ## Add an external folder
 
+Blender needs your permission before it can use a folder outside its own
+storage.
+
 1. Open Blender's file browser.
 2. Tap the folder-plus button beside the close button.
-3. Choose one folder in Files and tap **Open**.
-4. Find the folder under **System** in Blender's file browser.
+3. Choose a folder in Files and tap **Open**.
+4. Look under **System** in Blender's file browser for that folder.
 
-Blender stores a bookmark and restores the location after relaunch. Granting
-the same folder again does not create duplicates. Cloud and third-party file
-providers can take a moment to answer. Let the Files sheet dismiss on its own.
+Blender remembers the folder after you close the app. Adding it again shouldn't
+create a duplicate. Cloud providers can take a moment to respond, so wait for
+the Files picker to finish.
 
-![Blender's iOS file browser with the folder grant button highlighted](/blender-ios-build/files/external-folder.webp)
+![The folder access button beside the close button in Blender's file browser](/blender-ios-build/files/external-folder.webp)
 
-If a provider revokes access, add the folder again. Moving the folder or signing
-the app under a different identity can also invalidate its saved bookmark.
+If a folder stops opening, add it again. This can happen after moving it,
+changing its permissions, or signing Blender with a different account.
 
-## Secondary windows
+## Close a window
 
-Blender uses secondary windows for the file browser, render display, preferences,
-and some editor operations. Tap the round close button in the top-right corner,
-or press `Command-W` on a hardware keyboard. Wait for a window to close before
-opening the same type again.
+The file browser, render display, and Preferences can open in separate Blender
+windows. Close one with the round button at the top right, or press
+`Command-W` on a keyboard.
