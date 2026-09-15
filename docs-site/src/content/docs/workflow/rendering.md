@@ -1,32 +1,36 @@
 ---
 title: Rendering
-description: Choose a supported viewport and render engine on iOS.
+description: Choosing a render engine and keeping larger scenes manageable.
 ---
 
-## Viewport
+## Start small
 
-Solid Workbench and EEVEE rendered shading use Blender's Metal backend. They are
-the best starting points on every supported device. Large textures, dense
-geometry, and compiled shaders can exceed iOS memory limits sooner than on a Mac.
+Try rendering the startup cube in EEVEE at 512 by 512 before opening a heavy
+scene. It gives you a quick check that rendering works on your device.
+
+Workbench solid shading and EEVEE use Metal. Big textures, dense meshes, and
+rendered viewport shading can use a lot of memory, so save before switching
+to a heavier scene or starting a render.
 
 ## Cycles
 
-Cycles CPU is the proven fallback and works in the release build. Open Render
-Properties, choose Cycles, and select CPU when you want the most predictable
-result. Start with a small output size and a low sample count.
+Cycles includes CPU rendering. It's a useful fallback if GPU rendering isn't
+available or a scene gives you trouble. Choose Cycles in Render Properties,
+then select CPU. Start with a small image and a low sample count.
 
-Cycles Metal is built for physical devices with tier-2 argument buffers. It is
-hidden on the iOS Simulator because that simulated GPU cannot compile the
-bindless Cycles kernels. If Metal appears in your Cycles device preferences,
-test it on a copy of the project before a long render.
+Cycles also includes Metal support for compatible devices. It needs GPU
+features that aren't available everywhere, so the option may not appear.
+Try a short render before committing to a long one.
 
-## A sensible first render
+## What's missing
 
-1. Keep the startup cube and choose EEVEE.
-2. Set the output to 512 by 512 and a low sample count.
-3. Render one still image.
-4. Save the `.blend`, close Blender, reopen it, and render again.
-5. Increase scene size only after both passes succeed.
+OSL shaders and Blender's Hydra render integration aren't available.
+A project that depends on either will need changes.
+See [What doesn't work](/blender-ios-build/limitations/) before bringing over
+a more involved setup.
 
-Long renders keep the device hot and iOS may terminate an app under memory
-pressure. Save before rendering. CPU Cycles is correct but can be slow on a phone.
+## Long renders
+
+A long render can heat up the device, and iOS can close Blender if it uses too
+much memory. Save your project first. If a render won't finish, try a smaller
+image, fewer samples, or lower-resolution textures.

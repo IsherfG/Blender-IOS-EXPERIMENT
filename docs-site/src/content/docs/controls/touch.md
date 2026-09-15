@@ -1,50 +1,60 @@
 ---
 title: Touch and gestures
-description: Complete touch control map for Blender on iPhone and iPad.
+description: How to click, drag, and navigate Blender with your fingers.
 ---
 
-Touch uses a virtual cursor. Your finger behaves like a trackpad, so it can move
-the cursor without hiding the part of Blender you are trying to hit.
+Think of the screen as a trackpad. Drag a finger to move the cursor, then tap
+to click where the cursor is. Tapping a button with your finger won't select it
+unless the cursor is already over it.
 
 ![The virtual cursor over Blender's 3D Viewport](/blender-ios-build/touch/virtual-cursor.webp)
 
 ## Pointer and clicks
 
-| Gesture | Blender input | Use it for |
-| --- | --- | --- |
-| One-finger drag | Move the virtual cursor | Aim at buttons, fields, objects, sockets, and timeline controls. This does not hold a mouse button. |
-| One-finger tap | Left click at the virtual cursor | Select or activate whatever is under the cursor. The tap position does not teleport the cursor. |
-| Tap, then hold and drag | Left-button drag | Move sliders, drag nodes, box-select, operate gizmos, and perform other desktop click-drag actions. Hold the second touch for a moment before moving. |
-| One-finger triple tap | Desktop double-click | Rename entries and activate controls that require a double-click. |
-| Two-finger hold | Right-button press and drag | Open context menus with a hold and release. Keep holding and move to perform a right-button drag. The hold begins after about 0.3 seconds. |
+| Gesture | What it does |
+| --- | --- |
+| One-finger drag | Moves the virtual cursor. Use it to aim at a button, object, field, or node socket. |
+| One-finger tap | Left click at the cursor. |
+| Tap, then hold and drag | Left-button drag. Tap once, put the same finger down again, hold briefly, then move. Use this for sliders, nodes, gizmos, and box selection. |
+| One-finger triple tap | Double-click. Useful for renaming items and other controls that need a desktop double-click. |
+| Two-finger hold | Right click. Hold for about 0.3 seconds, then release to open a context menu. Keep holding and move for a right-button drag. |
 
-The cursor accelerates when your finger moves quickly and stays precise for
-short movements. It wraps at every edge. If it leaves the right side, it
-reappears on the left. Top and bottom behave the same way. Blender transforms
-that normally hide or capture the desktop cursor also preserve continuous
-motion and return the cursor when the operation ends.
+The cursor moves farther when you swipe quickly. Slow down for small targets.
 
-## Navigation by editor
+It also wraps around the screen. Push it past the right edge and it comes back
+on the left; the top and bottom work the same way. That lets you keep moving
+during a long drag or transform without running out of screen.
+
+Some Blender tools hide the cursor while you're using them. It comes back when
+you finish the operation.
+
+## Moving around an editor
+
+First, move the cursor into the editor you want to use. Gestures go to the
+editor under the cursor.
 
 | Gesture | 3D Viewport | Shader Editor, Geometry Nodes, and other 2D editors |
 | --- | --- | --- |
-| Two-finger drag | Orbit the view | Pan the canvas or scroll the region |
+| Two-finger drag | Orbit | Pan the canvas or scroll |
 | Pinch | Zoom | Zoom |
-| Three-finger drag | Pan the view | Reserved for the 3D Viewport mapping. Use two fingers to pan 2D editors. |
+| Three-finger drag | Pan | Use two fingers for ordinary 2D panning |
 
-Two-finger drag and pinch can run together, so you can orbit and zoom without
-lifting both fingers. The gesture applies to the editor under the virtual cursor.
-Move the cursor into the Shader Editor before navigating its node canvas. The
-same rule applies to the Outliner, timeline, Properties, and every other editor:
-put the cursor over that editor before scrolling, panning, or zooming it.
+You can drag with two fingers and pinch at the same time to orbit and zoom.
 
-## Commands
+In the Shader Editor, move the cursor over the nodes, then use two fingers to
+pan and pinch to zoom. To move a node or connect sockets, aim the cursor and use
+tap, then hold and drag.
+
+The same cursor rule applies to the Outliner, timeline, and Properties. Move
+the cursor there before trying to scroll or zoom.
+
+## Undo, redo, and search
 
 | Gesture | Command |
 | --- | --- |
 | Two-finger tap | Undo |
 | Three-finger tap | Redo |
-| Four-finger tap | Open Blender Search, the same command as `F3` |
+| Four-finger tap | Search, the same as `F3` |
 
-Multi-finger taps must be quick and nearly stationary. A two-finger hold becomes
-right mouse instead of Undo. A moving two-finger gesture becomes navigation.
+Keep these taps quick and still. Holding two fingers starts a right click;
+moving them starts navigation.
