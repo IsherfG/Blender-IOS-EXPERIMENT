@@ -30,6 +30,15 @@ the Files picker to finish.
 
 ![The folder access button beside the close button in Blender's file browser](/blender-ios-build/files/external-folder.webp)
 
+### Open a project from a network share
+
+This walkthrough starts in Blender, grants access to a Samba share through
+Files, and opens a project from that folder.
+
+<video controls playsinline preload="metadata" poster="/blender-ios-build/files/external-folder.webp">
+  <source src="/blender-ios-build/files/network-share.mp4" type="video/mp4" />
+</video>
+
 If a folder stops opening, add it again. This can happen after moving it,
 changing its permissions, or signing Blender with a different account.
 
