@@ -9,6 +9,9 @@ hero:
       link: /blender-ios-build/limitations/
       icon: open-book
       variant: primary
+    - text: View on GitHub
+      link: https://github.com/Shlok-Bhakta/blender-ios-build
+      icon: github
     - text: Install Blender
       link: /blender-ios-build/install/
       icon: right-arrow
