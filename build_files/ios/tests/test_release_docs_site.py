@@ -20,7 +20,7 @@ class ReleaseDocsSiteTests(unittest.TestCase):
         self.assertIn('"@astrojs/starlight"', package)
         self.assertTrue((SITE / "bun.lock").is_file())
         self.assertIn("starlight(", config)
-        self.assertIn("base: '/blender-ios-build'", config)
+        self.assertIn("base: '/3d-modeling-thingy-ios'", config)
         self.assertIn("publicDir: '../docs-media'", config)
         self.assertTrue(MEDIA.is_dir())
 

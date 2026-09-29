@@ -6,17 +6,17 @@ hero:
   tagline: Desktop Blender, with touch controls for iPhone and iPad.
   actions:
     - text: Read the limits first
-      link: /blender-ios-build/limitations/
+      link: /3d-modeling-thingy-ios/limitations/
       icon: open-book
       variant: primary
     - text: View on GitHub
-      link: https://github.com/Shlok-Bhakta/blender-ios-build
+      link: https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios
       icon: github
     - text: Install Blender
-      link: /blender-ios-build/install/
+      link: /3d-modeling-thingy-ios/install/
       icon: right-arrow
     - text: Learn the controls
-      link: /blender-ios-build/controls/touch/
+      link: /3d-modeling-thingy-ios/controls/touch/
       icon: open-book
 ---
 
@@ -39,8 +39,8 @@ Before bringing a project over, check what it needs.
 USD import and export are included, as is OpenVDB. Hydra rendering is the part
 of the USD-related tooling that's missing.
 
-Read [What doesn't work](/blender-ios-build/limitations/) for the full list,
-including [how add-ons work](/blender-ios-build/limitations/#add-ons-and-extensions)
+Read [What doesn't work](/3d-modeling-thingy-ios/limitations/) for the full list,
+including [how add-ons work](/3d-modeling-thingy-ios/limitations/#add-ons-and-extensions)
 and what we haven't tested yet.
 
 ## What you can do
@@ -52,7 +52,7 @@ and Cycles includes CPU rendering and a Metal option for compatible devices.
 You can also type into fields with the iOS keyboard, open files from the Files
 app, and give Blender access to folders outside its own storage.
 
-![Blender running on iPad](/blender-ios-build/overview/blender-ipad.webp)
+![Blender running on iPad](/3d-modeling-thingy-ios/overview/blender-ipad.webp)
 
 ## Before you install
 
@@ -60,7 +60,7 @@ You'll need an arm64 iPhone or iPad running iOS or iPadOS 18 or newer.
 Blender's desktop interface is a tight fit on a phone. Landscape gives you
 more room; a keyboard and mouse help too.
 
-Start with the [installation guide](/blender-ios-build/install/), then
-learn the [touch controls](/blender-ios-build/controls/touch/).
+Start with the [installation guide](/3d-modeling-thingy-ios/install/), then
+learn the [touch controls](/3d-modeling-thingy-ios/controls/touch/).
 For modeling, materials, animation, and other Blender tools, use the
 [Blender Manual](https://docs.blender.org/manual/en/5.2/).

@@ -5,7 +5,7 @@ import starlight from '@astrojs/starlight';
 // https://astro.build/config
 export default defineConfig({
 	site: 'https://shlok-bhakta.github.io',
-	base: '/blender-ios-build',
+	base: '/3d-modeling-thingy-ios',
 	publicDir: '../docs-media',
 	integrations: [
 		starlight({
@@ -15,7 +15,7 @@ export default defineConfig({
 				{
 					icon: 'github',
 					label: 'GitHub',
-					href: 'https://github.com/Shlok-Bhakta/blender-ios-build',
+					href: 'https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios',
 				},
 			],
 			sidebar: [
