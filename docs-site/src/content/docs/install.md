@@ -9,7 +9,7 @@ You'll need a sideloading tool to sign the app for your device.
 A free Apple Account can be used for signing; you don't need to join Apple's
 paid developer program. Free signatures expire after 7 days and need refreshing.
 
-Before installing, read [What doesn't work](/blender-ios-build/limitations/),
+Before installing, read [What doesn't work](/3d-modeling-thingy-ios/limitations/),
 especially if you rely on add-ons.
 
 ## SideStore
@@ -27,7 +27,7 @@ on a physical device.
 3. Connect LocalDevVPN as described in SideStore's guide.
 4. Open the link below in Safari on your device.
 
-[Install Blender with SideStore](sidestore://install?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
+[Install Blender with SideStore](sidestore://install?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2F3d-modeling-thingy-ios%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
 
 If the link doesn't open SideStore, download the IPA and select it from
 SideStore's **My Apps** tab.
@@ -35,14 +35,14 @@ SideStore's **My Apps** tab.
 After installation, check Blender's expiry in **My Apps**. Try refreshing it
 and make sure the date updates.
 
-[Download Blender-iOS.ipa](https://github.com/Shlok-Bhakta/blender-ios-build/releases/latest/download/Blender-iOS.ipa)
+[Download Blender-iOS.ipa](https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios/releases/latest/download/Blender-iOS.ipa)
 
 ## Autoloader
 
 Open the link in Safari on your device. Let Autoloader sign the app, then finish
 the installation under **Settings > Installation**.
 
-[Install Blender with Autoloader](https://marginally-better-apps.github.io/Autoloader/?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2Fblender-ios-build%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
+[Install Blender with Autoloader](https://marginally-better-apps.github.io/Autoloader/?url=https%3A%2F%2Fgithub.com%2FShlok-Bhakta%2F3d-modeling-thingy-ios%2Freleases%2Flatest%2Fdownload%2FBlender-iOS.ipa)
 
 ## Other sideloading tools
 

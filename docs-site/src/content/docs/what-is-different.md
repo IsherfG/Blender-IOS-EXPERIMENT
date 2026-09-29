@@ -13,7 +13,7 @@ cursor is. The cursor wraps around the screen edges so you can keep moving
 during a long drag.
 
 Gestures give you orbit, pan, zoom, right click, Undo, Redo, and Search.
-The [touch guide](/blender-ios-build/controls/touch/) lists them all.
+The [touch guide](/3d-modeling-thingy-ios/controls/touch/) lists them all.
 
 ## You can use the iOS keyboard or your own
 
@@ -22,7 +22,7 @@ work in numeric fields.
 
 A hardware keyboard, mouse, or trackpad gives you more familiar desktop
 controls. Pencil supports pressure, tilt, and hover where the device provides
-it. See [keyboard, mouse, and Pencil](/blender-ios-build/controls/keyboard-mouse-pencil/).
+it. See [keyboard, mouse, and Pencil](/3d-modeling-thingy-ios/controls/keyboard-mouse-pencil/).
 
 ## Folders need permission
 
@@ -32,7 +32,7 @@ remembers that folder for later.
 
 The file browser and other separate windows have a close button at the top
 right. `Command-W` works too.
-See [files and windows](/blender-ios-build/workflow/files-and-windows/).
+See [files and windows](/3d-modeling-thingy-ios/workflow/files-and-windows/).
 
 ## Some desktop workflows won't carry over
 
@@ -40,6 +40,6 @@ Blender includes Python, but add-ons that need desktop libraries or helper
 programs won't work unchanged. The Extensions installer also has a blocker.
 OSL, Hydra rendering, VR, and SpaceMouse support aren't available.
 
-Read [What doesn't work](/blender-ios-build/limitations/) for those limits.
+Read [What doesn't work](/3d-modeling-thingy-ios/limitations/) for those limits.
 For Blender's ordinary tools, use the
 [Blender Manual](https://docs.blender.org/manual/en/5.2/).

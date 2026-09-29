@@ -7,7 +7,7 @@ Think of the screen as a trackpad. Drag a finger to move the cursor, then tap
 to click where the cursor is. Tapping a button with your finger won't select it
 unless the cursor is already over it.
 
-![The virtual cursor over Blender's 3D Viewport](/blender-ios-build/touch/virtual-cursor.webp)
+![The virtual cursor over Blender's 3D Viewport](/3d-modeling-thingy-ios/touch/virtual-cursor.webp)
 
 ## Pointer and clicks
 

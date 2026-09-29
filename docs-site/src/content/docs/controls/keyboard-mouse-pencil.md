@@ -29,7 +29,7 @@ expression such as `3+4`. Done keeps the edit. Cancel restores the old value.
 
 After you finish, hardware keyboard shortcuts go back to Blender.
 
-![Entering an expression with the native iPad keyboard](/blender-ios-build/text/text-entry.webp)
+![Entering an expression with the native iPad keyboard](/3d-modeling-thingy-ios/text/text-entry.webp)
 
 ## Apple Pencil
 

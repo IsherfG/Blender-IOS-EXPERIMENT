@@ -26,7 +26,7 @@ Try a short render before committing to a long one.
 
 OSL shaders and Blender's Hydra render integration aren't available.
 A project that depends on either will need changes.
-See [What doesn't work](/blender-ios-build/limitations/) before bringing over
+See [What doesn't work](/3d-modeling-thingy-ios/limitations/) before bringing over
 a more involved setup.
 
 ## Long renders

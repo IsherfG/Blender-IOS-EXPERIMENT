@@ -44,7 +44,7 @@ through installation, use, and relaunch on a device.
 To try a legacy add-on:
 
 1. Save its `.py` or `.zip` file somewhere Blender can read.
-   If needed, [add its folder](/blender-ios-build/workflow/files-and-windows/#add-an-external-folder)
+   If needed, [add its folder](/3d-modeling-thingy-ios/workflow/files-and-windows/#add-an-external-folder)
    in Blender's file browser.
 2. Open **Edit > Preferences > Add-ons**.
 3. Open the menu at the top right and choose **Install from Disk**.
@@ -97,7 +97,7 @@ Save before starting a long render and keep a backup outside the app.
 Blender can use its own storage and files or folders you've granted access to.
 It can't freely browse the whole device like a desktop file system. A moved
 folder or a change in cloud-provider access may need
-[a new folder grant](/blender-ios-build/workflow/files-and-windows/#add-an-external-folder).
+[a new folder grant](/3d-modeling-thingy-ios/workflow/files-and-windows/#add-an-external-folder).
 
 Deleting the app can delete projects stored inside it. Signing it with a
 different account or tool can also change where its data lives.
@@ -113,11 +113,11 @@ We don't have broad coverage of third-party add-ons, external displays,
 cloud file providers, or every iPad window arrangement. There also isn't
 support for restoring several independent Blender sessions.
 
-If something fails, [report it](https://github.com/Shlok-Bhakta/blender-ios-build/issues)
+If something fails, [report it](https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios/issues)
 with your device, iOS version, and the steps that caused it. For an add-on,
 include its name and version too.
 
 The feature list above comes from the release's
-[iOS build settings](https://github.com/Shlok-Bhakta/blender-ios-build/blob/ios-v5.2.1/build_files/cmake/config/blender_ios_features.cmake).
+[iOS build settings](https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios/blob/ios-v5.2.1/build_files/cmake/config/blender_ios_features.cmake).
 The extension installer limitation comes from its
-[package command runner](https://github.com/Shlok-Bhakta/blender-ios-build/blob/ios-v5.2.1/scripts/addons_core/bl_pkg/bl_extension_utils.py).
+[package command runner](https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios/blob/ios-v5.2.1/scripts/addons_core/bl_pkg/bl_extension_utils.py).
