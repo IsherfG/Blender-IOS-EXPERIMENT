@@ -1,6 +1,6 @@
 ---
 title: Keyboard, mouse, and Apple Pencil
-description: Using a keyboard, mouse, trackpad, or Pencil with Blender.
+description: Use a keyboard, mouse, trackpad, or Apple Pencil with 3D Modeling Thingy.
 ---
 
 ## Mouse and trackpad
@@ -10,8 +10,8 @@ middle button to orbit, hold Shift and drag with the middle button to pan, and
 right click for a context menu.
 
 Point at the editor you want to use before scrolling or pinching on a trackpad.
-Blender draws its own cursor over the app, and the cursor can wrap around the
-window edges during continuous movement.
+The app draws its own cursor, which can wrap around the window edges during
+continuous movement.
 
 ## Hardware keyboard
 
@@ -25,16 +25,22 @@ render view. You can also use the close button at the top right.
 ## Typing into fields
 
 Editing a field opens the iOS text editor. You can type a name, a number, or an
-expression such as `3+4`. Done keeps the edit. Cancel restores the old value.
+expression such as `3+4`. Tap **Done** to keep the edit or **Cancel** to restore
+the old value.
 
-After you finish, hardware keyboard shortcuts go back to Blender.
+After you finish, hardware keyboard shortcuts control the app again.
 
-![Entering an expression with the native iPad keyboard](/3d-modeling-thingy-ios/text/text-entry.webp)
+This clip shows entering `3+4` in a numeric field and confirming the result, `7 m`.
+
+<video controls playsinline preload="metadata" aria-label="Enter a numeric expression with the iPad keyboard" poster="/3d-modeling-thingy-ios/text/text-entry.webp">
+  <source src="/3d-modeling-thingy-ios/text/text-entry.mp4" type="video/mp4" />
+  <a href="/3d-modeling-thingy-ios/text/text-entry.mp4">Watch the text entry demo.</a>
+</video>
 
 ## Apple Pencil
 
 Pencil points directly where its tip touches the screen. Tap to left click, or
-keep the tip down to draw or drag. Blender's tools receive pressure and tilt.
+keep the tip down to draw or drag. The tools receive pressure and tilt.
 
 Hover moves the cursor on iPads that support it. Pencil double tap sends a
 right click at the current Pencil position.

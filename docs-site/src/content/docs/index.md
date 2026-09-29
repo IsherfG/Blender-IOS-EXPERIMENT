@@ -1,9 +1,9 @@
 ---
-title: Blender for iOS
-description: Blender on iPhone and iPad, with touch controls and a few limits to know about.
+title: 3D Modeling Thingy
+description: An independent Blender-based app for iPhone and iPad. Learn the controls, install the app, and check its limits.
 template: splash
 hero:
-  tagline: Desktop Blender, with touch controls for iPhone and iPad.
+  tagline: 3D modeling on iPhone and iPad, with a familiar desktop interface and touch controls.
   actions:
     - text: Read the limits first
       link: /3d-modeling-thingy-ios/limitations/
@@ -12,7 +12,7 @@ hero:
     - text: View on GitHub
       link: https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios
       icon: github
-    - text: Install Blender
+    - text: Install the app
       link: /3d-modeling-thingy-ios/install/
       icon: right-arrow
     - text: Learn the controls
@@ -20,21 +20,22 @@ hero:
       icon: open-book
 ---
 
-This is Blender 5.2.1 with touch controls for iPhone and iPad. You get the
-desktop interface and work with ordinary `.blend` files.
+3D Modeling Thingy is an independent app based on Blender 5.2.1, adapted for
+iPhone and iPad. It keeps the desktop interface and uses ordinary `.blend` files.
+It is not affiliated with or endorsed by the Blender Foundation.
 
 ## What doesn't work
 
 Before bringing a project over, check what it needs.
 
-- **Add-ons aren't a sure thing.** Some Python-only add-ons may work.
+- **Add-on support is limited.** Some Python-only add-ons may work.
   Desktop binaries and add-ons that launch other programs won't.
-  The newer Extensions installer also has an iOS blocker.
+  The Extensions installer is unsupported on iOS.
 - **No OSL shaders or Hydra rendering.** Projects that depend on them need
   changes before you can use them here.
 - **No VR or SpaceMouse support.**
-- **Heavy scenes can close the app.** iOS can stop Blender when it runs out
-  of memory. Save often, especially before rendering.
+- **Large scenes can exceed device memory.** iOS may close the app if that
+  happens. Save often, especially before rendering.
 
 USD import and export are included, as is OpenVDB. Hydra rendering is the part
 of the USD-related tooling that's missing.
@@ -50,9 +51,9 @@ a keyboard and mouse, or Apple Pencil. Workbench and EEVEE run through Metal,
 and Cycles includes CPU rendering and a Metal option for compatible devices.
 
 You can also type into fields with the iOS keyboard, open files from the Files
-app, and give Blender access to folders outside its own storage.
+app, and give the app access to folders outside its own storage.
 
-![Blender running on iPad](/3d-modeling-thingy-ios/overview/blender-ipad.webp)
+![3D Modeling Thingy running on iPad](/3d-modeling-thingy-ios/overview/blender-ipad.webp)
 
 ## Before you install
 

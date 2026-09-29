@@ -1,4 +1,4 @@
-# Blender iOS decisions
+# 3D Modeling Thingy design decisions
 
 ## ADR-0001: Freeze v5.2.0 and use a release-relative donor delta
 

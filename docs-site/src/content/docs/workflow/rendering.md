@@ -5,8 +5,8 @@ description: Choosing a render engine and keeping larger scenes manageable.
 
 ## Start small
 
-Try rendering the startup cube in EEVEE at 512 by 512 before opening a heavy
-scene. It gives you a quick check that rendering works on your device.
+Start with the default cube. Choose EEVEE, set the output to 512 by 512 pixels,
+and render one frame. Check that it finishes before opening a larger project.
 
 Workbench solid shading and EEVEE use Metal. Big textures, dense meshes, and
 rendered viewport shading can use a lot of memory, so save before switching
@@ -31,6 +31,6 @@ a more involved setup.
 
 ## Long renders
 
-A long render can heat up the device, and iOS can close Blender if it uses too
+A long render can heat up the device, and iOS can close the app if it uses too
 much memory. Save your project first. If a render won't finish, try a smaller
 image, fewer samples, or lower-resolution textures.

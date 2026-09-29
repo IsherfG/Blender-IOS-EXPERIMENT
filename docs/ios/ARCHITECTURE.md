@@ -1,4 +1,4 @@
-# Blender iOS port architecture
+# 3D Modeling Thingy architecture
 
 ## Output lanes
 

@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "docs-site",
+      "name": "3d-modeling-thingy-docs",
       "dependencies": {
         "@astrojs/starlight": "^0.42.0",
         "astro": "^7.2.10",

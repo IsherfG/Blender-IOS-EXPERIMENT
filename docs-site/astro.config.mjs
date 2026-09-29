@@ -9,8 +9,8 @@ export default defineConfig({
 	publicDir: '../docs-media',
 	integrations: [
 		starlight({
-			title: 'Blender for iOS',
-			description: 'Install and use Blender 5.2 on iPhone and iPad.',
+			title: '3D Modeling Thingy',
+			description: 'Install and use 3D Modeling Thingy, an independent Blender-based app for iPhone and iPad.',
 			social: [
 				{
 					icon: 'github',

@@ -1,13 +1,13 @@
 ---
 title: Touch and gestures
-description: How to click, drag, and navigate Blender with your fingers.
+description: Move the cursor, select objects, and navigate with touch gestures.
 ---
 
-Think of the screen as a trackpad. Drag a finger to move the cursor, then tap
-to click where the cursor is. Tapping a button with your finger won't select it
-unless the cursor is already over it.
+Use the screen like a trackpad. Drag one finger to move the cursor, then tap
+anywhere to click at the cursor. To select a button, move the cursor over it
+first. A tap directly on the button only works if the cursor is already there.
 
-![The virtual cursor over Blender's 3D Viewport](/3d-modeling-thingy-ios/touch/virtual-cursor.webp)
+![The virtual cursor over the 3D Viewport](/3d-modeling-thingy-ios/touch/virtual-cursor.webp)
 
 ## Pointer and clicks
 
@@ -25,7 +25,7 @@ It also wraps around the screen. Push it past the right edge and it comes back
 on the left; the top and bottom work the same way. That lets you keep moving
 during a long drag or transform without running out of screen.
 
-Some Blender tools hide the cursor while you're using them. It comes back when
+Some tools hide the cursor while you're using them. It comes back when
 you finish the operation.
 
 ## Moving around an editor

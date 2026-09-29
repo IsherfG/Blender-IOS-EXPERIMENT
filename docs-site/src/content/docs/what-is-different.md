@@ -26,9 +26,9 @@ it. See [keyboard, mouse, and Pencil](/3d-modeling-thingy-ios/controls/keyboard-
 
 ## Folders need permission
 
-Open projects through Files or Blender's file browser. For a folder outside
-Blender's own storage, use the folder-plus button to grant access. Blender
-remembers that folder for later.
+Open projects through Files or the app's file browser. To use a folder outside
+the app's storage, select the folder-plus button and grant access. The app
+remembers the folder for next time.
 
 The file browser and other separate windows have a close button at the top
 right. `Command-W` works too.
@@ -36,8 +36,8 @@ See [files and windows](/3d-modeling-thingy-ios/workflow/files-and-windows/).
 
 ## Some desktop workflows won't carry over
 
-Blender includes Python, but add-ons that need desktop libraries or helper
-programs won't work unchanged. The Extensions installer also has a blocker.
+3D Modeling Thingy includes Python, but add-ons that need desktop libraries or helper
+programs won't work unchanged. The Extensions installer is unsupported.
 OSL, Hydra rendering, VR, and SpaceMouse support aren't available.
 
 Read [What doesn't work](/3d-modeling-thingy-ios/limitations/) for those limits.

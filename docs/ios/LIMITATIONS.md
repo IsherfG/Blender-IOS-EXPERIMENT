@@ -1,4 +1,4 @@
-# Blender iOS limitations
+# 3D Modeling Thingy development limitations
 
 Simulator Workbench and EEVEE are proven on both iPhone and iPad. Packet P530 installs the
 same `org.blenderfoundation.blender.ios` bundle (`UIDeviceFamily` 1 and 2) on an

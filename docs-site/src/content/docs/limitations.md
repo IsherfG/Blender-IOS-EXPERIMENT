@@ -3,7 +3,8 @@ title: What doesn't work
 description: Missing features, add-on limits, and things we haven't tested on iPhone and iPad.
 ---
 
-Most of Blender is here, but some desktop workflows won't carry over.
+3D Modeling Thingy includes most Blender features, but some desktop workflows
+need features that iOS does not support.
 These are the limits to check before you bring a project or buy an add-on.
 
 ## Missing features
@@ -36,28 +37,28 @@ We don't yet have a tested list of third-party add-ons.
 ### Python-only legacy add-ons
 
 An add-on written entirely in Python is the best candidate, provided it supports
-Blender 5.2 and only needs features available in this app. Blender's legacy
+Blender 5.2 and only needs features available in this app. The legacy
 installer copies Python files into its add-ons folder without launching another
 program. That path is present, but we haven't verified a third-party add-on
 through installation, use, and relaunch on a device.
 
 To try a legacy add-on:
 
-1. Save its `.py` or `.zip` file somewhere Blender can read.
+1. Save its `.py` or `.zip` file somewhere the app can read.
    If needed, [add its folder](/3d-modeling-thingy-ios/workflow/files-and-windows/#add-an-external-folder)
-   in Blender's file browser.
+   in the app's file browser.
 2. Open **Edit > Preferences > Add-ons**.
 3. Open the menu at the top right and choose **Install from Disk**.
 4. Select the file, then enable the add-on if it isn't enabled automatically.
 5. Try its tools on a copy of your project and check that it still works after
-   restarting Blender.
+   restarting the app.
 
 Keep ZIP packages zipped. An extension ZIP and a legacy add-on ZIP are different
 formats; changing the filename won't convert one into the other.
 Blender's [add-on installation guide](https://docs.blender.org/manual/en/5.0/editors/preferences/addons.html)
 explains the legacy format.
 
-### The newer Extensions installer has a blocker
+### The Extensions installer is unsupported
 
 The current Extensions installer calls a separate Python process for package
 operations. iOS doesn't support that path. This affects packages installed
@@ -88,13 +89,13 @@ Cycles CPU rendering is available, but long renders can be slow and heat up
 the device. Cycles Metal needs compatible GPU hardware; it won't be available
 on every device.
 
-iOS can close Blender when a scene uses too much memory. Large textures,
+iOS can close the app when a scene uses too much memory. Large textures,
 dense meshes, simulations, and rendered viewport shading all add to that load.
 Save before starting a long render and keep a backup outside the app.
 
 ## Files and app installation
 
-Blender can use its own storage and files or folders you've granted access to.
+The app can use its own storage and files or folders you've granted access to.
 It can't freely browse the whole device like a desktop file system. A moved
 folder or a change in cloud-provider access may need
 [a new folder grant](/3d-modeling-thingy-ios/workflow/files-and-windows/#add-an-external-folder).
@@ -111,7 +112,7 @@ on a physical device.
 
 We don't have broad coverage of third-party add-ons, external displays,
 cloud file providers, or every iPad window arrangement. There also isn't
-support for restoring several independent Blender sessions.
+support for restoring several independent app sessions.
 
 If something fails, [report it](https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios/issues)
 with your device, iOS version, and the steps that caused it. For an add-on,
