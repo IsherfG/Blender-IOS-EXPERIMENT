@@ -13,13 +13,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-package-publish:
+
+  dependencies:
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       (startsWith(github.head_ref, 'story/') ||
        startsWith(github.head_ref, 'feat/') ||
        startsWith(github.head_ref, 'refactor/'))
+    outputs:
+      dependency-cache-key: ${{ steps.cache-keys.outputs.dependency-cache-key }}
+      host-tool-cache-key: ${{ steps.cache-keys.outputs.host-tool-cache-key }}
+      xcode-cache-key: ${{ steps.cache-keys.outputs.xcode-cache-key }}
     runs-on: macos-15
     timeout-minutes: 360
     env:
@@ -162,22 +167,6 @@ jobs:
             ${{ env.DEPS_BUILD }}/Release
           key: ${{ steps.cache-keys.outputs.dependency-cache-key }}
 
-      - name: Restore revision-matched native tools
-        id: host-tool-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ env.HOST_INSTALL }}
-          key: ${{ steps.cache-keys.outputs.host-tool-cache-key }}
-
-      - name: Restore full-app compiler cache
-        id: app-compiler-cache
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ios-device-ccache-v1-${{ steps.cache-keys.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
-          restore-keys: |
-            ios-device-ccache-v1-${{ steps.cache-keys.outputs.xcode-cache-key }}-
-
       - name: Build and harvest iOS dependencies on cache miss
         if: steps.dependency-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -278,6 +267,99 @@ jobs:
             build_files/ios/tests/test_file_access_runtime.py \
             build_files/ios/tests/test_pr_preview_workflow.py
 
+  host-tools:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.head_ref, 'story/') ||
+       startsWith(github.head_ref, 'feat/') ||
+       startsWith(github.head_ref, 'refactor/'))
+    needs: dependencies
+    runs-on: macos-15
+    timeout-minutes: 360
+    env:
+      # Optional preferred Xcode. If the runner image no longer ships this
+      # version, the toolchain step falls back to the newest installed Xcode.
+      XCODE_PATH: /Applications/Xcode_26.3.app/Contents/Developer
+      CI_ROOT: ${{ github.workspace }}/.ios-preview
+      DEPS_BUILD: ${{ github.workspace }}/.ios-preview/deps-build
+      DEPS_INSTALL: ${{ github.workspace }}/.ios-preview/deps-install
+      DEPS_DOWNLOADS: ${{ github.workspace }}/.ios-preview/downloads
+      DEPS_PACKAGES: ${{ github.workspace }}/.ios-preview/packages
+      HOST_BUILD: ${{ github.workspace }}/.ios-preview/host-build
+      HOST_INSTALL: ${{ github.workspace }}/.ios-preview/host-install
+      APP_BUILD: ${{ github.workspace }}/.ios-preview/app-build
+      CCACHE_DIR: ${{ github.workspace }}/.ios-preview/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_NOHASHDIR: 'true'
+      CCACHE_COMPRESS: 'true'
+      CCACHE_MAXSIZE: 4G
+      RELEASE_DIR: ${{ github.workspace }}/.ios-preview/release
+      ASSET_NAME: DevBlender-test.blenderfoundation.blender.ios-unsigned.ipa
+      GIT_LFS_SKIP_SMUDGE: '1'
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out PR source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - name: Hydrate required LFS files from public Blender upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git remote add blender-lfs https://projects.blender.org/blender/blender.git
+          git config remote.blender-lfs.lfsurl https://projects.blender.org/blender/blender.git/info/lfs
+          git lfs pull blender-lfs \
+            --include="assets/**,release/datafiles/**,release/ios/**,scripts/**" \
+            --exclude=""
+          python3 - <<'PY'
+          from pathlib import Path
+
+          roots = (Path("assets"), Path("release/datafiles"), Path("release/ios"), Path("scripts"))
+          pointers = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if path.is_file():
+                      with path.open("rb") as handle:
+                          if handle.read(42) == b"version https://git-lfs.github.com/spec/v1":
+                              pointers.append(str(path))
+          if pointers:
+              raise SystemExit(f"unhydrated LFS pointer: {pointers[0]}")
+          PY
+
+      - name: Select the public runner toolchain
+        run: |
+          # Prefer the pinned Xcode when the runner image still ships it;
+          # otherwise fall back to the newest Xcode present on the image.
+          selected_xcode="$XCODE_PATH"
+          if [ ! -d "$selected_xcode" ]; then
+            selected_xcode="$(find /Applications -maxdepth 1 -name 'Xcode*.app' -print | sort -V | tail -1)/Contents/Developer"
+          fi
+          test -d "$selected_xcode"
+          echo "Selecting Xcode: $selected_xcode"
+          sudo xcode-select --switch "$selected_xcode"
+          xcodebuild -downloadComponent MetalToolchain
+          metal_toolchain="$(xcodebuild -showComponent MetalToolchain | awk -F': ' '/Toolchain Identifier/ { print $2 }')"
+          test -n "$metal_toolchain"
+          echo "TOOLCHAINS=$metal_toolchain" >> "$GITHUB_ENV"
+          TOOLCHAINS="$metal_toolchain" xcrun --sdk iphoneos metal -v
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Restore revision-matched native tools
+        id: host-tool-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.HOST_INSTALL }}
+          key: ${{ needs.dependencies.outputs.host-tool-cache-key }}
+
       - name: Build revision-matched native tools on cache miss
         if: steps.host-tool-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -328,7 +410,118 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ env.HOST_INSTALL }}
-          key: ${{ steps.cache-keys.outputs.host-tool-cache-key }}
+          key: ${{ needs.dependencies.outputs.host-tool-cache-key }}
+
+  build-package-publish:
+    if: >-
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.head_ref, 'story/') ||
+       startsWith(github.head_ref, 'feat/') ||
+       startsWith(github.head_ref, 'refactor/'))
+    needs: [dependencies, host-tools]
+    runs-on: macos-15
+    timeout-minutes: 360
+    env:
+      # Optional preferred Xcode. If the runner image no longer ships this
+      # version, the toolchain step falls back to the newest installed Xcode.
+      XCODE_PATH: /Applications/Xcode_26.3.app/Contents/Developer
+      CI_ROOT: ${{ github.workspace }}/.ios-preview
+      DEPS_BUILD: ${{ github.workspace }}/.ios-preview/deps-build
+      DEPS_INSTALL: ${{ github.workspace }}/.ios-preview/deps-install
+      DEPS_DOWNLOADS: ${{ github.workspace }}/.ios-preview/downloads
+      DEPS_PACKAGES: ${{ github.workspace }}/.ios-preview/packages
+      HOST_BUILD: ${{ github.workspace }}/.ios-preview/host-build
+      HOST_INSTALL: ${{ github.workspace }}/.ios-preview/host-install
+      APP_BUILD: ${{ github.workspace }}/.ios-preview/app-build
+      CCACHE_DIR: ${{ github.workspace }}/.ios-preview/ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_COMPILERCHECK: content
+      CCACHE_NOHASHDIR: 'true'
+      CCACHE_COMPRESS: 'true'
+      CCACHE_MAXSIZE: 4G
+      RELEASE_DIR: ${{ github.workspace }}/.ios-preview/release
+      ASSET_NAME: DevBlender-test.blenderfoundation.blender.ios-unsigned.ipa
+      GIT_LFS_SKIP_SMUDGE: '1'
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out PR source
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - name: Hydrate required LFS files from public Blender upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git remote add blender-lfs https://projects.blender.org/blender/blender.git
+          git config remote.blender-lfs.lfsurl https://projects.blender.org/blender/blender.git/info/lfs
+          git lfs pull blender-lfs \
+            --include="assets/**,release/datafiles/**,release/ios/**,scripts/**" \
+            --exclude=""
+          python3 - <<'PY'
+          from pathlib import Path
+
+          roots = (Path("assets"), Path("release/datafiles"), Path("release/ios"), Path("scripts"))
+          pointers = []
+          for root in roots:
+              if not root.exists():
+                  continue
+              for path in root.rglob("*"):
+                  if path.is_file():
+                      with path.open("rb") as handle:
+                          if handle.read(42) == b"version https://git-lfs.github.com/spec/v1":
+                              pointers.append(str(path))
+          if pointers:
+              raise SystemExit(f"unhydrated LFS pointer: {pointers[0]}")
+          PY
+
+      - name: Select the public runner toolchain
+        run: |
+          # Prefer the pinned Xcode when the runner image still ships it;
+          # otherwise fall back to the newest Xcode present on the image.
+          selected_xcode="$XCODE_PATH"
+          if [ ! -d "$selected_xcode" ]; then
+            selected_xcode="$(find /Applications -maxdepth 1 -name 'Xcode*.app' -print | sort -V | tail -1)/Contents/Developer"
+          fi
+          test -d "$selected_xcode"
+          echo "Selecting Xcode: $selected_xcode"
+          sudo xcode-select --switch "$selected_xcode"
+          xcodebuild -downloadComponent MetalToolchain
+          metal_toolchain="$(xcodebuild -showComponent MetalToolchain | awk -F': ' '/Toolchain Identifier/ { print $2 }')"
+          test -n "$metal_toolchain"
+          echo "TOOLCHAINS=$metal_toolchain" >> "$GITHUB_ENV"
+          TOOLCHAINS="$metal_toolchain" xcrun --sdk iphoneos metal -v
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Restore iOS dependency prefix
+        id: dependency-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            ${{ env.DEPS_INSTALL }}
+            ${{ env.DEPS_BUILD }}/Release
+          key: ${{ needs.dependencies.outputs.dependency-cache-key }}
+
+      - name: Restore revision-matched native tools
+        id: host-tool-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.HOST_INSTALL }}
+          key: ${{ needs.dependencies.outputs.host-tool-cache-key }}
+
+      - name: Restore full-app compiler cache
+        id: app-compiler-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
+          restore-keys: |
+            ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-
 
       - name: Configure and build unsigned device app
         shell: bash
@@ -365,7 +558,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ios-device-ccache-v1-${{ steps.cache-keys.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
+          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
 
       - name: Package and gate DevBlender IPA
         id: package
