@@ -23,6 +23,8 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 360
     env:
+      # Optional preferred Xcode. If the runner image no longer ships this
+      # version, the toolchain step falls back to the newest installed Xcode.
       XCODE_PATH: /Applications/Xcode_26.3.app/Contents/Developer
       CI_ROOT: ${{ github.workspace }}/.ios-preview
       DEPS_BUILD: ${{ github.workspace }}/.ios-preview/deps-build
@@ -79,7 +81,15 @@ jobs:
 
       - name: Select the public runner toolchain
         run: |
-          sudo xcode-select --switch "$XCODE_PATH"
+          # Prefer the pinned Xcode when the runner image still ships it;
+          # otherwise fall back to the newest Xcode present on the image.
+          selected_xcode="$XCODE_PATH"
+          if [ ! -d "$selected_xcode" ]; then
+            selected_xcode="$(find /Applications -maxdepth 1 -name 'Xcode*.app' -print | sort -V | tail -1)/Contents/Developer"
+          fi
+          test -d "$selected_xcode"
+          echo "Selecting Xcode: $selected_xcode"
+          sudo xcode-select --switch "$selected_xcode"
           xcodebuild -downloadComponent MetalToolchain
           metal_toolchain="$(xcodebuild -showComponent MetalToolchain | awk -F': ' '/Toolchain Identifier/ { print $2 }')"
           test -n "$metal_toolchain"
@@ -395,7 +405,13 @@ jobs:
             gh pr list --repo "$GITHUB_REPOSITORY" --state all --head "$BASE_REF" \
               --json number --jq '.[0].number'
           )"
-          test -n "$previous_pr"
+          if [[ -z "$previous_pr" ]]; then
+            # First PR in this repository: there is no parent preview to stack on.
+            previous_pr="none"
+            stack_note="based on $BASE_REF"
+          else
+            stack_note="stacked on #$previous_pr"
+          fi
           short_sha="${PR_SHA:0:12}"
           summary="${PR_TITLE#*: }"
           tag="pr-$PR_NUMBER"
@@ -404,7 +420,7 @@ jobs:
           release_body="$RELEASE_DIR/release-body.md"
           comment_body="$RELEASE_DIR/comment-body.md"
           printf '%s\n\n' "Autoloader preview for https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER" > "$release_body"
-          printf '%s\n\n' "Unsigned universal iPhone+iPad IPA from \`$short_sha\` ($summary, stacked on #$previous_pr). Autoloader signs this on-device." >> "$release_body"
+          printf '%s\n\n' "Unsigned universal iPhone+iPad IPA from \`$short_sha\` ($summary, $stack_note). Autoloader signs this on-device." >> "$release_body"
           printf '%s\n' \
             '- App name: DevBlender' \
             '- Bundle identifier: `test.blenderfoundation.blender.ios`' \
@@ -412,7 +428,7 @@ jobs:
             "- SHA-256: \`$IPA_SHA256\`" \
             '' \
             "Install: $install_url" >> "$release_body"
-          printf '%s\n\n' "PR $PR_NUMBER Autoloader/Feather build from \`$short_sha\` ($summary, stacked on #$previous_pr). Hosted on the \`$tag\` GitHub release, not Planista." > "$comment_body"
+          printf '%s\n\n' "PR $PR_NUMBER Autoloader/Feather build from \`$short_sha\` ($summary, $stack_note). Hosted on the \`$tag\` GitHub release, not Planista." > "$comment_body"
           printf '%s\n' \
             "- Install (Safari): $install_url" \
             "- Direct IPA: $ipa_url" \
