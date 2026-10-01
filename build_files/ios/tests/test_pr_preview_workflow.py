@@ -171,6 +171,7 @@ class PrPreviewWorkflowTests(unittest.TestCase):
             "test_simulator_file_access.py",
             "test_file_access_runtime.py",
             "test_pr_preview_workflow.py",
+            "test_ios_defaults.py",
         ):
             self.assertIn(test_file, regression_step)
         self.assertNotIn("test_*.py", regression_step)

@@ -69,4 +69,10 @@ void BLI_windows_exception_show_dialog(const char *filepath_crashlog,
 #  define BLI_SYSTEM_PID_H <unistd.h>
 #endif
 
+/**
+ * True when running on an Apple tablet (iPad). Returns false on every other
+ * platform, so callers can branch on device class without platform guards.
+ */
+bool BLI_system_is_tablet();
+
 }  // namespace blender

@@ -476,6 +476,7 @@ if(APPLE)
   list(APPEND SRC
     intern/fileops_apple.mm
     intern/storage_apple.mm
+    intern/system_apple.mm
   )
 endif()
 

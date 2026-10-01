@@ -156,6 +156,14 @@ void WM_exit_ex(bContext *C, bool do_python_exit, bool do_user_exit_actions);
  */
 void WM_exit(bContext *C, int exit_code) ATTR_NORETURN;
 
+/**
+ * Write user preferences if the user allows saving and they have changed.
+ *
+ * Platforms that suspend instead of exiting call this from their lifecycle
+ * hooks, because the save in #WM_exit_ex only runs on a clean exit.
+ */
+void WM_userpref_save_on_suspend();
+
 void WM_main(bContext *C) ATTR_NORETURN;
 
 /** Initialize the event loop for a platform-owned process loop. */

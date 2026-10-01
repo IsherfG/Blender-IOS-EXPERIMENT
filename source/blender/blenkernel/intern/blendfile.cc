@@ -1524,7 +1524,15 @@ UserDef *BKE_blendfile_userdef_from_defaults()
   userdef->subversionfile = BLENDER_FILE_SUBVERSION;
 
 #ifdef BLENDER_PLATFORM_DEFAULT_UI_SCALE
+#  ifdef BLENDER_PLATFORM_DEFAULT_UI_SCALE_TABLET
+  /* An iPad has far more screen area than an iPhone, so the same editors fit at a
+   * smaller scale. Both values are compile-time platform defaults rather than a
+   * choice the user has already made. */
+  userdef->ui_scale = BLI_system_is_tablet() ? BLENDER_PLATFORM_DEFAULT_UI_SCALE_TABLET :
+                                               BLENDER_PLATFORM_DEFAULT_UI_SCALE;
+#  else
   userdef->ui_scale = BLENDER_PLATFORM_DEFAULT_UI_SCALE;
+#  endif
 #endif
 
   /* Add-ons. */

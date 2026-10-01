@@ -259,6 +259,7 @@ jobs:
             build_files/ios/tests/test_ghost_file_access.py \
             build_files/ios/tests/test_simulator_file_access.py \
             build_files/ios/tests/test_file_access_runtime.py \
+            build_files/ios/tests/test_ios_defaults.py \
             build_files/ios/tests/test_pr_preview_workflow.py
 
   host-tools:

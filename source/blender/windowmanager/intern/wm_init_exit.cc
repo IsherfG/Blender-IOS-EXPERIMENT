@@ -481,6 +481,23 @@ void wm_exit_schedule_delayed(const bContext *C)
 
 void UV_clipboard_free();
 
+void WM_userpref_save_on_suspend()
+{
+  if (G.background) {
+    return;
+  }
+  if ((U.pref_flag & USER_PREF_FLAG_SAVE) == 0) {
+    return;
+  }
+  if (G.f & G_FLAG_USERPREF_NO_SAVE_ON_EXIT) {
+    return;
+  }
+  if (!U.runtime.is_dirty) {
+    return;
+  }
+  BKE_blendfile_userdef_write_all(nullptr);
+}
+
 void WM_exit_ex(bContext *C, const bool do_python_exit, const bool do_user_exit_actions)
 {
   wmWindowManager *wm = C ? CTX_wm_manager(C) : nullptr;

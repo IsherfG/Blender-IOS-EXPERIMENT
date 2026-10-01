@@ -42,6 +42,8 @@ static bContext *C = nullptr;
 
 /* Implemented in wm.cc. */
 void WM_main_loop_body(bContext *C);
+/* Implemented in wm_init_exit.cc. */
+void WM_userpref_save_on_suspend();
 }  // namespace blender
 
 int main_ios_callback(int argc, const char **argv);
@@ -82,6 +84,13 @@ static BOOL IOS_open_document_url(NSURL *url);
   return IOS_open_document_url(url);
 }
 
+- (void)applicationDidEnterBackground:(UIApplication *)application
+{
+  (void)application;
+  /* iOS suspends the app here and may terminate it later without a clean exit,
+   * so preferences the user changed would otherwise be lost. */
+  blender::WM_userpref_save_on_suspend();
+}
 - (void)applicationWillTerminate:(UIApplication *)application
 {
   (void)application;
