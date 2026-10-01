@@ -112,7 +112,7 @@ class PrPreviewWorkflowTests(unittest.TestCase):
         )[1]
         self.assertIn("DEPENDEES after_install", harvest_step)
 
-    def test_publishes_exact_pr_release_contract(self) -> None:
+    def test_publishes_an_unsigned_preview_without_a_pull_request(self) -> None:
         workflow = WORKFLOW.read_text()
         self.assertIn("gh release delete", workflow)
         self.assertIn("--cleanup-tag", workflow)
@@ -120,16 +120,19 @@ class PrPreviewWorkflowTests(unittest.TestCase):
         self.assertIn("--prerelease", workflow)
         self.assertIn("DevBlender-test.blenderfoundation.blender.ios-unsigned.ipa", workflow)
         self.assertIn("application/octet-stream", workflow)
-        self.assertIn("gh pr comment", workflow)
-        self.assertIn("marginally-better-apps.github.io/Autoloader", workflow)
+        self.assertIn("gh release create \"$tag\"", workflow)
+        self.assertNotIn("gh pr comment", workflow)
+        self.assertNotIn("gh pr view", workflow)
+        self.assertNotIn("marginally-better-apps.github.io", workflow)
         self.assertNotIn("planista.shloklab.us", workflow.lower())
 
-    def test_write_lane_excludes_forks(self) -> None:
+    def test_builds_run_from_push_or_manual_dispatch(self) -> None:
         workflow = WORKFLOW.read_text()
-        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository", workflow)
-        self.assertIn("startsWith(github.head_ref, 'story/')", workflow)
-        self.assertIn("startsWith(github.head_ref, 'feat/')", workflow)
-        self.assertIn("startsWith(github.head_ref, 'refactor/')", workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("branches: [main]", workflow)
+        self.assertIn("cancel-in-progress: true", workflow)
+        self.assertNotIn("pull_request:", workflow)
+        self.assertNotIn("github.event.pull_request", workflow)
 
     def test_host_tools_match_the_device_generator_features(self) -> None:
         profile = HOST_PROFILE.read_text()

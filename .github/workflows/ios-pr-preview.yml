@@ -1,26 +1,20 @@
-name: iOS PR preview
+name: iOS device build
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
-  group: ios-pr-preview-${{ github.event.pull_request.number }}
+  group: ios-device-build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
 
   dependencies:
-    if: >-
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (startsWith(github.head_ref, 'story/') ||
-       startsWith(github.head_ref, 'feat/') ||
-       startsWith(github.head_ref, 'refactor/'))
     outputs:
       dependency-cache-key: ${{ steps.cache-keys.outputs.dependency-cache-key }}
       host-tool-cache-key: ${{ steps.cache-keys.outputs.host-tool-cache-key }}
@@ -51,7 +45,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Check out PR source
+      - name: Check out the source
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
@@ -268,12 +262,6 @@ jobs:
             build_files/ios/tests/test_pr_preview_workflow.py
 
   host-tools:
-    if: >-
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (startsWith(github.head_ref, 'story/') ||
-       startsWith(github.head_ref, 'feat/') ||
-       startsWith(github.head_ref, 'refactor/'))
     needs: dependencies
     runs-on: macos-15
     timeout-minutes: 360
@@ -301,7 +289,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Check out PR source
+      - name: Check out the source
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
@@ -413,12 +401,6 @@ jobs:
           key: ${{ needs.dependencies.outputs.host-tool-cache-key }}
 
   build-package-publish:
-    if: >-
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      (startsWith(github.head_ref, 'story/') ||
-       startsWith(github.head_ref, 'feat/') ||
-       startsWith(github.head_ref, 'refactor/'))
     needs: [dependencies, host-tools]
     runs-on: macos-15
     timeout-minutes: 360
@@ -446,7 +428,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Check out PR source
+      - name: Check out the source
         uses: actions/checkout@v6
         with:
           fetch-depth: 1
@@ -519,7 +501,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
+          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.sha }}
           restore-keys: |
             ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-
 
@@ -558,7 +540,7 @@ jobs:
         uses: actions/cache/save@v5
         with:
           path: ${{ env.CCACHE_DIR }}
-          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.event.pull_request.head.sha }}
+          key: ios-device-ccache-v1-${{ needs.dependencies.outputs.xcode-cache-key }}-${{ github.sha }}
 
       - name: Package and gate DevBlender IPA
         id: package
@@ -579,65 +561,39 @@ jobs:
           unzip -t "$ipa"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
-      - name: Publish prerelease and comment on the PR
+      - name: Publish the unsigned preview
         shell: bash
         env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BUILD_SHA: ${{ github.sha }}
+          REF_NAME: ${{ github.ref_name }}
           IPA_SHA256: ${{ steps.package.outputs.sha256 }}
         run: |
           set -euo pipefail
-          current_sha="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)"
-          if [[ "$current_sha" != "$PR_SHA" ]]; then
-            echo "PR advanced to $current_sha; a newer run will publish its preview."
-            exit 0
-          fi
-          previous_pr="$(
-            gh pr list --repo "$GITHUB_REPOSITORY" --state all --head "$BASE_REF" \
-              --json number --jq '.[0].number'
-          )"
-          if [[ -z "$previous_pr" ]]; then
-            # First PR in this repository: there is no parent preview to stack on.
-            previous_pr="none"
-            stack_note="based on $BASE_REF"
-          else
-            stack_note="stacked on #$previous_pr"
-          fi
-          short_sha="${PR_SHA:0:12}"
-          summary="${PR_TITLE#*: }"
-          tag="pr-$PR_NUMBER"
+          short_sha="${BUILD_SHA:0:12}"
+          tag="preview-$short_sha"
           ipa_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$ASSET_NAME"
-          install_url="$(IPA_URL="$ipa_url" python3 -c 'import os; from urllib.parse import quote; print("https://marginally-better-apps.github.io/Autoloader/?url=" + quote(os.environ["IPA_URL"], safe=""))')"
           release_body="$RELEASE_DIR/release-body.md"
-          comment_body="$RELEASE_DIR/comment-body.md"
-          printf '%s\n\n' "Autoloader preview for https://github.com/$GITHUB_REPOSITORY/pull/$PR_NUMBER" > "$release_body"
-          printf '%s\n\n' "Unsigned universal iPhone+iPad IPA from \`$short_sha\` ($summary, $stack_note). Autoloader signs this on-device." >> "$release_body"
           printf '%s\n' \
+            "Unsigned universal iPhone+iPad build from \`$short_sha\` on \`$REF_NAME\`." \
+            '' \
             '- App name: DevBlender' \
             '- Bundle identifier: `test.blenderfoundation.blender.ios`' \
             '- Layout: `Payload/Blender.app`' \
             "- SHA-256: \`$IPA_SHA256\`" \
             '' \
-            "Install: $install_url" >> "$release_body"
-          printf '%s\n\n' "PR $PR_NUMBER Autoloader/Feather build from \`$short_sha\` ($summary, $stack_note). Hosted on the \`$tag\` GitHub release, not Planista." > "$comment_body"
-          printf '%s\n' \
-            "- Install (Safari): $install_url" \
-            "- Direct IPA: $ipa_url" \
-            "- SHA-256: \`$IPA_SHA256\`" \
-            '- Identity: DevBlender / `test.blenderfoundation.blender.ios`' \
+            'Sign it on-device with SideStore or AltStore using a free Apple Account.' \
+            'Free signatures expire after 7 days; refresh the signature to keep using the app.' \
             '' \
-            'Autoloader signs on-device, then Settings → Installation.' >> "$comment_body"
+            "Download: $ipa_url" > "$release_body"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag
           fi
           gh release create "$tag" "$RELEASE_DIR/$ASSET_NAME" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$PR_SHA" \
-            --title "PR #$PR_NUMBER unsigned IPA" \
+            --target "$BUILD_SHA" \
+            --title "Unsigned iOS build $short_sha" \
             --notes-file "$release_body" \
             --prerelease
           content_type="$(curl --fail --silent --show-error --location --head --output /dev/null --write-out '%{content_type}' "$ipa_url")"
           test "$content_type" = application/octet-stream
-          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body-file "$comment_body"
+          echo "Published: $ipa_url"
