@@ -172,6 +172,7 @@ class PrPreviewWorkflowTests(unittest.TestCase):
             "test_file_access_runtime.py",
             "test_pr_preview_workflow.py",
             "test_ios_defaults.py",
+            "test_ghost_virtual_pointer.py",
         ):
             self.assertIn(test_file, regression_step)
         self.assertNotIn("test_*.py", regression_step)

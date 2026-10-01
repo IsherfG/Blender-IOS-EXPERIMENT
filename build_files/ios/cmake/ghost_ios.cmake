@@ -9,6 +9,7 @@ list(APPEND SRC
   intern/GHOST_IOSFileAccess.hh
   intern/GHOST_IOSFileAccess.mm
   intern/GHOST_IOSInputTuning.hh
+  intern/GHOST_IOSInputTuning.mm
   intern/GHOST_IOSVirtualPointer.hh
   intern/GHOST_IOSVirtualPointer.mm
   intern/GHOST_IOSVirtualPointerState.hh

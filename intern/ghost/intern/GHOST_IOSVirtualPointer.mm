@@ -173,7 +173,7 @@ class GHOST_IOSVirtualPointer::Impl {
     }
 
     window_->getClientBounds(bounds);
-    if constexpr (GHOST_IOSInputTuning::pointer_always_wrap) {
+    if (GHOST_IOSInputTuning::values().pointer_always_wrap) {
       state_.wrapToBounds(bounds.l_, bounds.t_, bounds.r_, bounds.b_, 2.0, true, true);
     }
     else {

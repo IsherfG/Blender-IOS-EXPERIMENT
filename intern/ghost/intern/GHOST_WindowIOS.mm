@@ -980,9 +980,9 @@ static bool modifierForKey(const GHOST_TKey key, GHOST_TModifierKey &modifier)
   two_finger_hold_gesture_recognizer.numberOfTapsRequired = 0;
   two_finger_hold_gesture_recognizer.numberOfTouchesRequired = 2;
   two_finger_hold_gesture_recognizer.minimumPressDuration =
-      GHOST_IOSInputTuning::two_finger_right_click_hold_seconds;
+      GHOST_IOSInputTuning::values().two_finger_right_click_hold_seconds;
   two_finger_hold_gesture_recognizer.allowableMovement =
-      GHOST_IOSInputTuning::two_finger_right_click_slop_points;
+      GHOST_IOSInputTuning::values().two_finger_right_click_slop_points;
   two_finger_hold_gesture_recognizer.allowedTouchTypes = @[@(UITouchTypeDirect)];
 
   [tap2f_gesture_recognizer requireGestureRecognizerToFail:two_finger_hold_gesture_recognizer];

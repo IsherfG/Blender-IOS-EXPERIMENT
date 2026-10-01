@@ -10,6 +10,7 @@
 
 #include "GHOST_ContextIOS.hh"
 #include "GHOST_IOSVirtualPointer.hh"
+#include "GHOST_IOSInputTuning.hh"
 #include "GHOST_WindowIOS.hh"
 
 #include "GHOST_Debug.hh"
@@ -72,6 +73,9 @@ static BOOL IOS_open_document_url(NSURL *url);
   (void)application;
   (void)launchOptions;
   self.securityScopedURLs = [NSMutableSet set];
+  /* Apply any Files-visible input tuning before the first input arrives. */
+  GHOST_IOSInputTuning::reload_overrides();
+
   return YES;
 }
 
@@ -82,6 +86,13 @@ static BOOL IOS_open_document_url(NSURL *url);
   (void)application;
   (void)options;
   return IOS_open_document_url(url);
+}
+
+- (void)applicationWillEnterForeground:(UIApplication *)application
+{
+  (void)application;
+  /* Pick up edits to the tuning file without needing a relaunch. */
+  GHOST_IOSInputTuning::reload_overrides();
 }
 
 - (void)applicationDidEnterBackground:(UIApplication *)application

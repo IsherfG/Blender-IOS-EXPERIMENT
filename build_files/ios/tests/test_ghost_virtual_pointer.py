@@ -122,11 +122,11 @@ class GhostVirtualPointerStateTests(unittest.TestCase):
               const double extreme =
                   GHOST_IOSPointerAcceleration::multiplier(10000.0, 0.0, 0.001, 2.0);
 
-              assert(slow == GHOST_IOSInputTuning::pointer_min_multiplier);
+              assert(slow == GHOST_IOSInputTuning::values().pointer_min_multiplier);
               assert(medium > slow);
               assert(fast > medium);
-              assert(fast <= GHOST_IOSInputTuning::pointer_max_multiplier);
-              assert(extreme == GHOST_IOSInputTuning::pointer_max_multiplier);
+              assert(fast <= GHOST_IOSInputTuning::values().pointer_max_multiplier);
+              assert(extreme == GHOST_IOSInputTuning::values().pointer_max_multiplier);
 
               GHOST_IOSVirtualPointerState state;
               state.initialize(2000.0, 1000.0, 2.0);
@@ -134,7 +134,7 @@ class GhostVirtualPointerStateTests(unittest.TestCase):
               state.moveRelativeTo(180.0, 100.0, 1.02);
               assert(state.x() > 1000.0 + 80.0);
               assert(state.x() <=
-                     1000.0 + 80.0 * GHOST_IOSInputTuning::pointer_max_multiplier);
+                     1000.0 + 80.0 * GHOST_IOSInputTuning::values().pointer_max_multiplier);
               return 0;
             }
             """
@@ -222,10 +222,106 @@ class GhostVirtualPointerStateTests(unittest.TestCase):
             subprocess.run([str(executable)], check=True)
 
 
+    def test_overrides_are_validated_and_never_apply_a_broken_curve(self) -> None:
+        """Tuning values are editable at runtime, so bad edits must be refused."""
+        harness = textwrap.dedent(
+            r"""
+            #include "GHOST_IOSVirtualPointerState.hh"
+
+            #include <cassert>
+            #include <cmath>
+            #include <string>
+            #include <utility>
+            #include <vector>
+
+            using namespace GHOST_IOSInputTuning;
+
+            int main()
+            {
+              assert(values().pointer_min_multiplier == 1.0);
+              assert(values().pointer_always_wrap);
+
+              /* A well formed edit applies. */
+              const OverrideResult ok = apply_overrides(
+                  {{"pointer_max_multiplier", 2.5},
+                   {"two_finger_right_click_hold_seconds", 0.5}},
+                  {{"pointer_always_wrap", false}});
+              assert(ok.applied == 3);
+              assert(ok.rejected.empty());
+              assert(values().pointer_max_multiplier == 2.5);
+              assert(values().two_finger_right_click_hold_seconds == 0.5);
+              assert(!values().pointer_always_wrap);
+
+              /* Out of range is rejected and leaves the previous value alone. */
+              const OverrideResult range = apply_overrides({{"pointer_max_multiplier", 1000.0}}, {});
+              assert(range.applied == 0);
+              assert(!range.rejected.empty());
+              assert(values().pointer_max_multiplier == 2.5);
+
+              /* A NaN must not reach the cursor math. */
+              const OverrideResult nan = apply_overrides({{"pointer_min_multiplier", std::nan("")}},
+                                                         {});
+              assert(nan.applied == 0);
+              assert(values().pointer_min_multiplier == 1.0);
+
+              /* A typo is reported rather than ignored. */
+              const OverrideResult unknown = apply_overrides({{"pointer_max_multiplierr", 2.0}}, {});
+              assert(unknown.applied == 0);
+              assert(!unknown.rejected.empty());
+
+              /* An inverted acceleration span would divide by zero. */
+              const OverrideResult inverted = apply_overrides(
+                  {{"pointer_acceleration_start_points_per_second", 5000.0},
+                   {"pointer_acceleration_full_points_per_second", 100.0}},
+                  {});
+              assert(inverted.applied == 0);
+              assert(!inverted.rejected.empty());
+              assert(values().pointer_acceleration_start_points_per_second == 120.0);
+              assert(values().pointer_acceleration_full_points_per_second == 1100.0);
+
+              /* Crossed multipliers are refused as a pair. */
+              const OverrideResult crossed = apply_overrides(
+                  {{"pointer_min_multiplier", 5.0}, {"pointer_max_multiplier", 2.0}}, {});
+              assert(crossed.applied == 0);
+              assert(values().pointer_min_multiplier == 1.0);
+
+              /* Even if validation were bypassed, the acceleration math must not
+               * return a NaN for an empty span. */
+              values().pointer_acceleration_start_points_per_second = 900.0;
+              values().pointer_acceleration_full_points_per_second = 900.0;
+              const double guarded = GHOST_IOSPointerAcceleration::multiplier(10.0, 0.0, 0.01, 2.0);
+              assert(guarded == values().pointer_min_multiplier);
+              return 0;
+            }
+            """
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            temporary = Path(directory)
+            source = temporary / "input_tuning_overrides_test.cc"
+            executable = temporary / "input_tuning_overrides_test"
+            source.write_text(harness)
+            compile_result = subprocess.run(
+                [
+                    "xcrun",
+                    "clang++",
+                    "-std=c++17",
+                    "-I",
+                    str(POINTER_STATE_HEADER.parent),
+                    str(source),
+                    "-o",
+                    str(executable),
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(compile_result.returncode, 0, compile_result.stderr)
+            subprocess.run([str(executable)], check=True)
+
 class GhostVirtualPointerIntegrationTests(unittest.TestCase):
     def test_ios_build_owns_the_pointer_shim(self) -> None:
         cmake = GHOST_CMAKE.read_text()
         self.assertIn("intern/GHOST_IOSInputTuning.hh", cmake)
+        self.assertIn("intern/GHOST_IOSInputTuning.mm", cmake)
         self.assertIn("intern/GHOST_IOSVirtualPointer.hh", cmake)
         self.assertIn("intern/GHOST_IOSVirtualPointer.mm", cmake)
 

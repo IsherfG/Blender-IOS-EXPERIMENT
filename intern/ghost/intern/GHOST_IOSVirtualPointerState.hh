@@ -36,25 +36,29 @@ class GHOST_IOSPointerAcceleration {
                            const double input_scale)
   {
     if (elapsed_seconds <= 0.0 || input_scale <= 0.0) {
-      return GHOST_IOSInputTuning::pointer_min_multiplier;
+      return GHOST_IOSInputTuning::values().pointer_min_multiplier;
     }
 
     const double distance_points = std::hypot(delta_x, delta_y) / input_scale;
     const double velocity_points_per_second = distance_points / elapsed_seconds;
     const double acceleration_range =
-        GHOST_IOSInputTuning::pointer_acceleration_full_points_per_second -
-        GHOST_IOSInputTuning::pointer_acceleration_start_points_per_second;
+        GHOST_IOSInputTuning::values().pointer_acceleration_full_points_per_second -
+        GHOST_IOSInputTuning::values().pointer_acceleration_start_points_per_second;
+    /* These are runtime-tunable now, so guard the division below. */
+    if (acceleration_range <= 0.0) {
+      return GHOST_IOSInputTuning::values().pointer_min_multiplier;
+    }
     const double normalized_velocity = std::clamp(
         (velocity_points_per_second -
-         GHOST_IOSInputTuning::pointer_acceleration_start_points_per_second) /
+         GHOST_IOSInputTuning::values().pointer_acceleration_start_points_per_second) /
             acceleration_range,
         0.0,
         1.0);
     const double smooth_velocity = normalized_velocity * normalized_velocity *
                                    (3.0 - 2.0 * normalized_velocity);
-    return GHOST_IOSInputTuning::pointer_min_multiplier +
-           (GHOST_IOSInputTuning::pointer_max_multiplier -
-            GHOST_IOSInputTuning::pointer_min_multiplier) *
+    return GHOST_IOSInputTuning::values().pointer_min_multiplier +
+           (GHOST_IOSInputTuning::values().pointer_max_multiplier -
+            GHOST_IOSInputTuning::values().pointer_min_multiplier) *
                smooth_velocity;
   }
 };
