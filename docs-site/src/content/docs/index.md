@@ -9,6 +9,9 @@ hero:
       link: /3d-modeling-thingy-ios/limitations/
       icon: open-book
       variant: primary
+    - text: Watch 17 short clips
+      link: /3d-modeling-thingy-ios/controls/video-guide/
+      icon: right-arrow
     - text: View on GitHub
       link: https://github.com/Shlok-Bhakta/3d-modeling-thingy-ios
       icon: github
@@ -43,6 +46,12 @@ of the USD-related tooling that's missing.
 Read [What doesn't work](/3d-modeling-thingy-ios/limitations/) for the full list,
 including [how add-ons work](/3d-modeling-thingy-ios/limitations/#add-ons-and-extensions)
 and what we haven't tested yet.
+
+## Watch 17 short clips
+
+The [short video guide](/3d-modeling-thingy-ios/controls/video-guide/) shows
+orbit, three-finger pan, pinch in different editors, cursor wrapping, and
+small gestures that make the app easier to use. Each clip covers one action.
 
 ## What you can do
 

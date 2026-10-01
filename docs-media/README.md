@@ -21,3 +21,16 @@ ffmpeg -i "SOURCE.mp4" -t 10.5 -vf 'fps=15,scale=1024:-2' -an \
   -c:v libx264 -preset medium -crf 28 -pix_fmt yuv420p \
   -movflags +faststart text/text-entry.mp4
 ```
+
+## Touch video gallery
+
+`touch/clips.json` indexes 17 additional short clips. The guide embeds them at
+`controls/video-guide/`, with native playback controls and `preload="none"` so
+opening the guide does not fetch all videos.
+
+The clips were captured on September 30, 2026 with the iPad Pro 13-inch M5
+simulator running iOS 26.5. They show real production GHOST touch input. The teal
+dots replay injected contact positions; the caption names the action. Raw
+captures and logs are preserved at `/tmp/thingy-gesture-recordings` on the
+recording Mac. Reusable recipes, state evidence, and reproduction instructions
+are in `build_files/ios/gesture_gallery/`.

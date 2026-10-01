@@ -24,6 +24,7 @@ export default defineConfig({
 					label: 'Controls',
 					items: [
 						{ label: 'Touch and gestures', slug: 'controls/touch' },
+						{ label: 'Short video guide', slug: 'controls/video-guide' },
 						{ label: 'Keyboard, mouse, and Pencil', slug: 'controls/keyboard-mouse-pencil' },
 					],
 				},

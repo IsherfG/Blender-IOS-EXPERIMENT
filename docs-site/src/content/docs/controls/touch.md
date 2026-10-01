@@ -3,6 +3,9 @@ title: Touch and gestures
 description: Move the cursor, select objects, and navigate with touch gestures.
 ---
 
+Watch the [short video guide](/3d-modeling-thingy-ios/controls/video-guide/)
+for demonstrations of cursor targeting, navigation, and gesture edge cases.
+
 Use the screen like a trackpad. Drag one finger to move the cursor, then tap
 anywhere to click at the cursor. To select a button, move the cursor over it
 first. A tap directly on the button only works if the cursor is already there.
